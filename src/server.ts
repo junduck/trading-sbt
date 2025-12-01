@@ -27,6 +27,20 @@ import type {
   CancelAllOrdersParams,
   ReplayParams,
 } from "./schema/index.js";
+import {
+  InitParamsSchema,
+  LoginParamsSchema,
+  LogoutParamsSchema,
+  SubscribeParamsSchema,
+  UnsubscribeParamsSchema,
+  GetPositionParamsSchema,
+  GetOpenOrdersParamsSchema,
+  SubmitOrdersParamsSchema,
+  AmendOrdersParamsSchema,
+  CancelOrdersParamsSchema,
+  CancelAllOrdersParamsSchema,
+  ReplayParamsSchema,
+} from "./schema/index.js";
 
 export class Server {
   private readonly wss: WebSocketServer;
@@ -101,15 +115,40 @@ export class Server {
     ws.send(JSON.stringify(event));
   }
 
+  /**
+   * Validate params against a Zod schema and send error response if invalid.
+   * Returns validated params if successful, undefined if validation failed.
+   */
+  private validateParams<T>(
+    ws: WebSocket,
+    actionId: number,
+    params: unknown,
+    schema: any
+  ): T | undefined {
+    const result = schema.safeParse(params);
+    if (!result.success) {
+      this.sendResponse(ws, actionId, undefined, {
+        code: "INVALID_PARAMS",
+        message: result.error.errors
+          .map((e: any) => `${e.path.join(".")}: ${e.message}`)
+          .join(", "),
+      });
+      return undefined;
+    }
+    return result.data;
+  }
+
   private handlers = {
     init(
       this: Server,
       _session: Session,
       ws: WebSocket,
       actionId: number,
-      _params: unknown
+      params: unknown
     ): void {
-      // TODO: implement init logic
+      const validated = this.validateParams(ws, actionId, params, InitParamsSchema);
+      if (validated === undefined && params !== undefined) return;
+
       this.sendResponse(ws, actionId, {
         version: "1.0.0",
       });
@@ -122,9 +161,10 @@ export class Server {
       actionId: number,
       params: unknown
     ): void {
-      const { cid, config } = params as LoginParams;
+      const validated = this.validateParams<LoginParams>(ws, actionId, params, LoginParamsSchema);
+      if (!validated) return;
 
-      // TODO: validate params
+      const { cid, config } = validated;
 
       // Reject login during active replay
       if (this.activeReplays.has(ws)) {
@@ -152,9 +192,10 @@ export class Server {
       actionId: number,
       params: unknown
     ): void {
-      const { cid } = params as LogoutParams;
+      const validated = this.validateParams<LogoutParams>(ws, actionId, params, LogoutParamsSchema);
+      if (!validated) return;
 
-      // TODO: validate params
+      const { cid } = validated;
 
       session.logout(cid);
 
@@ -168,9 +209,10 @@ export class Server {
       actionId: number,
       params: unknown
     ): void {
-      const { cid, symbols } = params as SubscribeParams;
+      const validated = this.validateParams<SubscribeParams>(ws, actionId, params, SubscribeParamsSchema);
+      if (!validated) return;
 
-      // TODO: validate params
+      const { cid, symbols } = validated;
 
       const client = session.getClient(cid);
       if (!client) {
@@ -194,9 +236,10 @@ export class Server {
       actionId: number,
       params: unknown
     ): void {
-      const { cid, symbols } = params as UnsubscribeParams;
+      const validated = this.validateParams<UnsubscribeParams>(ws, actionId, params, UnsubscribeParamsSchema);
+      if (!validated) return;
 
-      // TODO: validate params
+      const { cid, symbols } = validated;
 
       const client = session.getClient(cid);
       if (!client) {
@@ -220,9 +263,10 @@ export class Server {
       actionId: number,
       params: unknown
     ): void {
-      const { cid } = params as GetPositionParams;
+      const validated = this.validateParams<GetPositionParams>(ws, actionId, params, GetPositionParamsSchema);
+      if (!validated) return;
 
-      // TODO: validate params
+      const { cid } = validated;
 
       const client = session.getClient(cid);
       if (!client) {
@@ -244,9 +288,10 @@ export class Server {
       actionId: number,
       params: unknown
     ): void {
-      const { cid } = params as GetOpenOrdersParams;
+      const validated = this.validateParams<GetOpenOrdersParams>(ws, actionId, params, GetOpenOrdersParamsSchema);
+      if (!validated) return;
 
-      // TODO: validate params
+      const { cid } = validated;
 
       const client = session.getClient(cid);
       if (!client) {
@@ -268,7 +313,10 @@ export class Server {
       actionId: number,
       params: unknown
     ): void {
-      const { cid, orders } = params as SubmitOrdersParams;
+      const validated = this.validateParams<SubmitOrdersParams>(ws, actionId, params, SubmitOrdersParamsSchema);
+      if (!validated) return;
+
+      const { cid, orders } = validated;
 
       const client = session.getClient(cid);
       if (!client) {
@@ -306,7 +354,10 @@ export class Server {
       actionId: number,
       params: unknown
     ): void {
-      const { cid, updates } = params as AmendOrdersParams;
+      const validated = this.validateParams<AmendOrdersParams>(ws, actionId, params, AmendOrdersParamsSchema);
+      if (!validated) return;
+
+      const { cid, updates } = validated;
 
       const client = session.getClient(cid);
       if (!client) {
@@ -344,7 +395,10 @@ export class Server {
       actionId: number,
       params: unknown
     ): void {
-      const { cid, orderIds } = params as CancelOrdersParams;
+      const validated = this.validateParams<CancelOrdersParams>(ws, actionId, params, CancelOrdersParamsSchema);
+      if (!validated) return;
+
+      const { cid, orderIds } = validated;
 
       const client = session.getClient(cid);
       if (!client) {
@@ -382,7 +436,10 @@ export class Server {
       actionId: number,
       params: unknown
     ): void {
-      const { cid } = params as CancelAllOrdersParams;
+      const validated = this.validateParams<CancelAllOrdersParams>(ws, actionId, params, CancelAllOrdersParamsSchema);
+      if (!validated) return;
+
+      const { cid } = validated;
 
       const client = session.getClient(cid);
       if (!client) {
@@ -420,7 +477,10 @@ export class Server {
       actionId: number,
       params: unknown
     ): Promise<void> {
-      const { from, to, interval, replay_id } = params as ReplayParams;
+      const validated = this.validateParams<ReplayParams>(ws, actionId, params, ReplayParamsSchema);
+      if (!validated) return;
+
+      const { from, to, interval, replay_id } = validated;
 
       // Reject if there's already an active replay on this connection
       if (this.activeReplays.has(ws)) {
@@ -430,8 +490,6 @@ export class Server {
         });
         return;
       }
-
-      // TODO: validate params
 
       // Collect all subscribed symbols from all clients on this connection
       const allSymbols = new Set<string>();
@@ -471,7 +529,38 @@ export class Server {
             client.setTime(currentTime);
           }
 
-          // Send market data to subscribed clients
+          // Step 1: Process pending orders for all clients and send order events
+          for (const client of session.clients.values()) {
+            // Filter quotes for this client's subscriptions
+            const clientData = data.filter((quote) =>
+              client.subscriptions.has(quote.symbol)
+            );
+
+            if (clientData.length > 0) {
+              // Process pending orders with market data
+              const { updated, filled } = client.broker.processPendingOrders(
+                clientData
+              );
+
+              // Send order event if there are updates
+              if (updated.length > 0) {
+                const event: OrderWSEvent = {
+                  type: "event",
+                  cid: client.cid,
+                  timestamp: currentTime,
+                  data: {
+                    type: "order",
+                    timestamp: currentTime,
+                    updated,
+                    fill: filled,
+                  },
+                };
+                this.sendEvent(ws, event);
+              }
+            }
+          }
+
+          // Step 2: Send market data to subscribed clients
           for (const client of session.clients.values()) {
             // Filter quotes for this client's subscriptions
             const clientData = data.filter((quote) =>
