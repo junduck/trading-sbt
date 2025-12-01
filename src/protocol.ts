@@ -45,12 +45,12 @@ export interface ExternalEvent extends BaseEvent {
 
 /**
  * WebSocket event wrapper with client routing.
- * Each event includes `cid` to route to the correct client session.
+ * Timestamps are Date objects, automatically serialized to ISO 8601 by JSON.stringify.
  */
 interface BaseWSEvent {
   type: "event";
   cid: string;
-  timestamp: number;
+  timestamp: Date;
 }
 
 export interface MarketWSEvent extends BaseWSEvent {
@@ -69,8 +69,7 @@ export type WSEvent = MarketWSEvent | OrderWSEvent | ExternalWSEvent;
 
 export interface LoginResult {
   connected: boolean;
-  timestamp: number;
-  epoch: "s" | "ms" | "us";
+  timestamp: Date;
 }
 
 export interface SubscribeResult {
@@ -84,3 +83,9 @@ export interface UnsubscribeResult {
 export type GetPositionResult = Position;
 
 export type GetOpenOrdersResult = OrderState[];
+
+export interface ReplayResult {
+  replay_finished: string;
+  begin: Date;
+  end: Date;
+}

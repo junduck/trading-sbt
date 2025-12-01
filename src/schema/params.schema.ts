@@ -50,6 +50,13 @@ export const CancelAllOrdersParamsSchema = z.object({
   cid: z.string(),
 });
 
+export const ReplayParamsSchema = z.object({
+  from: z.string().datetime(),
+  to: z.string().datetime(),
+  interval: z.number().positive(),
+  replay_id: z.string(),
+});
+
 export type InitParams = z.infer<typeof InitParamsSchema>;
 export type LoginParams = z.infer<typeof LoginParamsSchema>;
 export type LogoutParams = z.infer<typeof LogoutParamsSchema>;
@@ -61,3 +68,4 @@ export type SubmitOrdersParams = z.infer<typeof SubmitOrdersParamsSchema>;
 export type AmendOrdersParams = z.infer<typeof AmendOrdersParamsSchema>;
 export type CancelOrdersParams = z.infer<typeof CancelOrdersParamsSchema>;
 export type CancelAllOrdersParams = z.infer<typeof CancelAllOrdersParamsSchema>;
+export type ReplayParams = z.infer<typeof ReplayParamsSchema>;

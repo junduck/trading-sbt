@@ -7,11 +7,11 @@ import type { BacktestConfig } from "./schema/backtest.schema.js";
  */
 export class ClientState {
   readonly cid: string;
-  readonly loginTimestamp: number;
+  readonly loginTimestamp: Date;
   readonly subscriptions: Set<string> = new Set();
   readonly broker: BacktestBroker;
 
-  constructor(cid: string, config: BacktestConfig, loginTimestamp: number) {
+  constructor(cid: string, config: BacktestConfig, loginTimestamp: Date) {
     this.cid = cid;
     this.loginTimestamp = loginTimestamp;
     this.broker = new BacktestBroker(config);
@@ -55,7 +55,7 @@ export class Session {
   /**
    * Login creates a new client session.
    */
-  login(cid: string, config: BacktestConfig, timestamp: number): ClientState {
+  login(cid: string, config: BacktestConfig, timestamp: Date): ClientState {
     const client = new ClientState(cid, config, timestamp);
     this.clients.set(cid, client);
     return client;

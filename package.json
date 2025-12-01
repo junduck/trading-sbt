@@ -12,6 +12,7 @@
   "license": "ISC",
   "packageManager": "pnpm@10.23.0",
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.10.1",
     "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.0.14",
@@ -20,6 +21,7 @@
   },
   "dependencies": {
     "@junduck/trading-core": "^2.7.0",
+    "better-sqlite3": "^12.5.0",
     "ws": "^8.18.3",
     "zod": "^4.1.13"
   }

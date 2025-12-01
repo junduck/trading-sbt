@@ -108,7 +108,7 @@ Declare attendance / gracefully ask server to release resources
   "action_id": 1,
   "result": {
     "connected": true,
-    "timestamp": 1764293100,
+    "timestamp": "2024-01-15T10:30:00.000Z",
     "epoch": "s"
   }
 }
@@ -172,6 +172,45 @@ Unsubscribe from market data for specified symbols.
   "action_id": 3,
   "result": {
     "unsubscribed": ["AAPL"]
+  }
+}
+```
+
+### Replay
+
+A client-side orchestrator should manage the orchestration of multiplexed clients. This is done by asking the server to begin a replay
+
+**Request:**
+
+```json
+{
+  "action": "replay",
+  "action_id": 5,
+  "params": {
+    "from": "2024-01-15T10:30:00.000Z",
+    "to": "2024-01-20T10:30:00.000Z",
+    "interval": 1000, 
+    "replay_id": "some_id_for_this_replay"
+  }
+}
+```
+
+interval: since we simulate real-time event, orchestrator can ask for some interval between event, so clients can process data without backpressure.
+
+login request during replay will be rejected via error, the consideration is session prepares data upon login, not via replay
+
+**Response:**
+
+Data stream starts immediately, and upon replay finish:
+
+```json
+{
+  "action": "response",
+  "action_id": 5,
+  "result": {
+    "replay_finished": "some_id_for_this_replay",
+    "begin": "2025-01-20T10:30:00.000Z",
+    "end": "2025-01-20T10:30:10.000Z"
   }
 }
 ```
@@ -412,7 +451,7 @@ Streamed when market data is available for subscribed symbols.
 {
   "type": "event",
   "cid": "client-uuid-123",
-  "timestamp": 1764293100,
+  "timestamp": "2024-01-15T10:30:00.000Z",
   "data": MarketEvent
 }
 ```
@@ -432,7 +471,7 @@ Streamed when order state changes or fills occur.
 {
   "type": "event",
   "cid": "client-uuid-123",
-  "timestamp": 1764293100,
+  "timestamp": "2024-01-15T10:30:00.000Z",
   "data": OrderEvent
 }
 ```
@@ -453,7 +492,7 @@ Streamed when external event data is available for subscribed symbols (News, ext
 {
   "type": "event",
   "cid": "client-uuid-123",
-  "timestamp": 1764293100,
+  "timestamp": "2024-01-15T10:30:00.000Z",
   "data": ExternalEvent
 }
 ```
