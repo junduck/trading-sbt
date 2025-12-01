@@ -1,23 +1,24 @@
 import Database from "better-sqlite3";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { dirname, join, isAbsolute } from "node:path";
 import { readFileSync, existsSync } from "node:fs";
+import { z } from "zod";
 import type { MarketQuote } from "@junduck/trading-core/trading";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-export interface DatabaseConfig {
-  dbPath: string;
-  price: string;
-  timestamp: string;
-  epoch: "s" | "ms" | "ISO";
-}
+const DatabaseConfigSchema = z.object({
+  dbPath: z.string(),
+  price: z.string(),
+  timestamp: z.string(),
+  epoch: z.enum(["s", "ms"]),
+});
 
-export function parseTime(t: any, epoch: "s" | "ms" | "ISO"): Date {
+export type DatabaseConfig = z.infer<typeof DatabaseConfigSchema>;
+
+export function parseTime(t: any, epoch: "s" | "ms"): Date {
   switch (epoch) {
-    case "ISO":
-      return new Date(t as string);
     case "s":
       return new Date((t as number) * 1000);
     case "ms":
@@ -43,10 +44,11 @@ function loadConfig(): DatabaseConfig {
   }
 
   const configData = readFileSync(configPath, "utf-8");
-  const config = JSON.parse(configData) as DatabaseConfig;
+  const parsed = JSON.parse(configData);
+  const config = DatabaseConfigSchema.parse(parsed);
 
   // Resolve relative dbPath from config file location
-  if (!config.dbPath.startsWith("/")) {
+  if (!isAbsolute(config.dbPath)) {
     const configDir = dirname(configPath);
     config.dbPath = join(configDir, config.dbPath);
   }
@@ -71,6 +73,20 @@ export class MarketDatabase {
     const path = dbPath ?? this.config.dbPath;
     this.db = new Database(path, { readonly: true });
     this.symbols = symbols ?? undefined;
+
+    // Validate table name against available tables
+    const tables = this.db
+      .prepare("SELECT name FROM sqlite_master WHERE type='table'")
+      .pluck()
+      .all() as string[];
+
+    if (!tables.includes(table)) {
+      this.db.close();
+      throw new Error(
+        `Table '${table}' not found. Available tables: ${tables.join(", ")}`
+      );
+    }
+
     this.table = table;
 
     this.timestampsStmt = this.db.prepare(`
