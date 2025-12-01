@@ -50,7 +50,6 @@ export class Server {
   get serverTime(): Date {
     return new Date();
   }
-  playbackTime?: Date;
 
   constructor(port: number = 8080, dbPath?: string) {
     this.db = new MarketDatabase(dbPath);
@@ -146,7 +145,12 @@ export class Server {
       actionId: number,
       params: unknown
     ): void {
-      const validated = this.validateParams(ws, actionId, params, InitParamsSchema);
+      const validated = this.validateParams(
+        ws,
+        actionId,
+        params,
+        InitParamsSchema
+      );
       if (validated === undefined && params !== undefined) return;
 
       this.sendResponse(ws, actionId, {
@@ -161,7 +165,12 @@ export class Server {
       actionId: number,
       params: unknown
     ): void {
-      const validated = this.validateParams<LoginParams>(ws, actionId, params, LoginParamsSchema);
+      const validated = this.validateParams<LoginParams>(
+        ws,
+        actionId,
+        params,
+        LoginParamsSchema
+      );
       if (!validated) return;
 
       const { cid, config } = validated;
@@ -192,7 +201,12 @@ export class Server {
       actionId: number,
       params: unknown
     ): void {
-      const validated = this.validateParams<LogoutParams>(ws, actionId, params, LogoutParamsSchema);
+      const validated = this.validateParams<LogoutParams>(
+        ws,
+        actionId,
+        params,
+        LogoutParamsSchema
+      );
       if (!validated) return;
 
       const { cid } = validated;
@@ -209,7 +223,12 @@ export class Server {
       actionId: number,
       params: unknown
     ): void {
-      const validated = this.validateParams<SubscribeParams>(ws, actionId, params, SubscribeParamsSchema);
+      const validated = this.validateParams<SubscribeParams>(
+        ws,
+        actionId,
+        params,
+        SubscribeParamsSchema
+      );
       if (!validated) return;
 
       const { cid, symbols } = validated;
@@ -236,7 +255,12 @@ export class Server {
       actionId: number,
       params: unknown
     ): void {
-      const validated = this.validateParams<UnsubscribeParams>(ws, actionId, params, UnsubscribeParamsSchema);
+      const validated = this.validateParams<UnsubscribeParams>(
+        ws,
+        actionId,
+        params,
+        UnsubscribeParamsSchema
+      );
       if (!validated) return;
 
       const { cid, symbols } = validated;
@@ -263,7 +287,12 @@ export class Server {
       actionId: number,
       params: unknown
     ): void {
-      const validated = this.validateParams<GetPositionParams>(ws, actionId, params, GetPositionParamsSchema);
+      const validated = this.validateParams<GetPositionParams>(
+        ws,
+        actionId,
+        params,
+        GetPositionParamsSchema
+      );
       if (!validated) return;
 
       const { cid } = validated;
@@ -288,7 +317,12 @@ export class Server {
       actionId: number,
       params: unknown
     ): void {
-      const validated = this.validateParams<GetOpenOrdersParams>(ws, actionId, params, GetOpenOrdersParamsSchema);
+      const validated = this.validateParams<GetOpenOrdersParams>(
+        ws,
+        actionId,
+        params,
+        GetOpenOrdersParamsSchema
+      );
       if (!validated) return;
 
       const { cid } = validated;
@@ -313,7 +347,12 @@ export class Server {
       actionId: number,
       params: unknown
     ): void {
-      const validated = this.validateParams<SubmitOrdersParams>(ws, actionId, params, SubmitOrdersParamsSchema);
+      const validated = this.validateParams<SubmitOrdersParams>(
+        ws,
+        actionId,
+        params,
+        SubmitOrdersParamsSchema
+      );
       if (!validated) return;
 
       const { cid, orders } = validated;
@@ -354,7 +393,12 @@ export class Server {
       actionId: number,
       params: unknown
     ): void {
-      const validated = this.validateParams<AmendOrdersParams>(ws, actionId, params, AmendOrdersParamsSchema);
+      const validated = this.validateParams<AmendOrdersParams>(
+        ws,
+        actionId,
+        params,
+        AmendOrdersParamsSchema
+      );
       if (!validated) return;
 
       const { cid, updates } = validated;
@@ -395,7 +439,12 @@ export class Server {
       actionId: number,
       params: unknown
     ): void {
-      const validated = this.validateParams<CancelOrdersParams>(ws, actionId, params, CancelOrdersParamsSchema);
+      const validated = this.validateParams<CancelOrdersParams>(
+        ws,
+        actionId,
+        params,
+        CancelOrdersParamsSchema
+      );
       if (!validated) return;
 
       const { cid, orderIds } = validated;
@@ -436,7 +485,12 @@ export class Server {
       actionId: number,
       params: unknown
     ): void {
-      const validated = this.validateParams<CancelAllOrdersParams>(ws, actionId, params, CancelAllOrdersParamsSchema);
+      const validated = this.validateParams<CancelAllOrdersParams>(
+        ws,
+        actionId,
+        params,
+        CancelAllOrdersParamsSchema
+      );
       if (!validated) return;
 
       const { cid } = validated;
@@ -477,7 +531,12 @@ export class Server {
       actionId: number,
       params: unknown
     ): Promise<void> {
-      const validated = this.validateParams<ReplayParams>(ws, actionId, params, ReplayParamsSchema);
+      const validated = this.validateParams<ReplayParams>(
+        ws,
+        actionId,
+        params,
+        ReplayParamsSchema
+      );
       if (!validated) return;
 
       const { from, to, interval, replay_id } = validated;
@@ -511,22 +570,17 @@ export class Server {
       // Create database instance for this replay with symbol filter
       const replayDb = new MarketDatabase(undefined, symbols);
 
-      let actualBegin: Date | undefined;
-      let actualEnd: Date | undefined;
+      const replayBegin = this.serverTime;
 
       try {
         // Stream data using generator
         for (const batch of replayDb.replayData(fromEpoch, toEpoch)) {
           const { timestamp, data } = batch;
-          const currentTime = new Date(timestamp * 1000);
-
-          // Track actual time range
-          if (!actualBegin) actualBegin = currentTime;
-          actualEnd = currentTime;
+          const replayTime = new Date(timestamp * 1000);
 
           // Update broker time for all clients
           for (const client of session.clients.values()) {
-            client.setTime(currentTime);
+            client.setTime(replayTime);
           }
 
           // Step 1: Process pending orders for all clients and send order events
@@ -536,21 +590,22 @@ export class Server {
               client.subscriptions.has(quote.symbol)
             );
 
+            client.broker.setTime(replayTime);
+
             if (clientData.length > 0) {
               // Process pending orders with market data
-              const { updated, filled } = client.broker.processPendingOrders(
-                clientData
-              );
+              const { updated, filled } =
+                client.broker.processPendingOrders(clientData);
 
               // Send order event if there are updates
               if (updated.length > 0) {
                 const event: OrderWSEvent = {
                   type: "event",
                   cid: client.cid,
-                  timestamp: currentTime,
+                  timestamp: this.serverTime,
                   data: {
                     type: "order",
-                    timestamp: currentTime,
+                    timestamp: this.serverTime,
                     updated,
                     fill: filled,
                   },
@@ -571,10 +626,10 @@ export class Server {
               const event: MarketWSEvent = {
                 type: "event",
                 cid: client.cid,
-                timestamp: currentTime,
+                timestamp: this.serverTime,
                 data: {
                   type: "market",
-                  timestamp: currentTime,
+                  timestamp: this.serverTime,
                   marketData: clientData,
                 },
               };
@@ -586,14 +641,22 @@ export class Server {
           await new Promise((resolve) => setTimeout(resolve, interval));
         }
 
+        const replayEnd = this.serverTime;
+
         // Send completion response
         const result: ReplayResult = {
           replay_finished: replay_id,
-          begin: actualBegin ?? new Date(from),
-          end: actualEnd ?? new Date(to),
+          begin: replayBegin,
+          end: replayEnd,
         };
 
         this.sendResponse(ws, actionId, result);
+      } catch (error) {
+        // Send error response to client
+        this.sendResponse(ws, actionId, undefined, {
+          code: "REPLAY_ERROR",
+          message: error instanceof Error ? error.message : "Unknown replay error",
+        });
       } finally {
         // Clean up
         replayDb.close();

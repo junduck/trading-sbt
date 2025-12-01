@@ -215,6 +215,8 @@ Data stream starts immediately, and upon replay finish:
 }
 ```
 
+begin and end are server wall-clock time.
+
 ### Trade Provider Methods
 
 #### getPosition
