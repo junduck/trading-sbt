@@ -51,8 +51,8 @@ export const CancelAllOrdersParamsSchema = z.object({
 });
 
 export const ReplayParamsSchema = z.object({
-  from: z.string().datetime(),
-  to: z.string().datetime(),
+  from: z.string(),
+  to: z.string(),
   interval: z.number().positive(),
   replay_id: z.string(),
   table: z.string(),

@@ -46,15 +46,15 @@ export class Server {
   private readonly wss: WebSocketServer;
   private readonly connectionSessions = new WeakMap<WebSocket, Session>();
   private readonly activeReplays = new WeakMap<WebSocket, string>();
-  private readonly db: MarketDatabase;
+  private readonly dbPath: string | undefined;
   get serverTime(): Date {
     return new Date();
   }
 
   constructor(port: number = 8080, dbPath?: string) {
-    this.db = new MarketDatabase(dbPath);
     this.wss = new WebSocketServer({ port });
     this.wss.on("connection", (ws: WebSocket) => this.handleConnection(ws));
+    this.dbPath = dbPath;
     console.log(`WebSocket server started on port ${port}`);
   }
 
@@ -126,11 +126,16 @@ export class Server {
   ): T | undefined {
     const result = schema.safeParse(params);
     if (!result.success) {
+      const errorMessage =
+        result.error.errors
+          ?.map((e: any) => `${e.path.join(".")}: ${e.message}`)
+          .join(", ") ||
+        result.error.message ||
+        "Invalid parameters";
+
       this.sendResponse(ws, actionId, undefined, {
         code: "INVALID_PARAMS",
-        message: result.error.errors
-          .map((e: any) => `${e.path.join(".")}: ${e.message}`)
-          .join(", "),
+        message: errorMessage,
       });
       return undefined;
     }
@@ -568,7 +573,7 @@ export class Server {
       this.activeReplays.set(ws, replay_id);
 
       // Create database instance for this replay with symbol filter and table
-      const replayDb = new MarketDatabase(undefined, symbols, table);
+      const replayDb = new MarketDatabase(this.dbPath, symbols, table);
 
       const replayBegin = this.serverTime;
 
@@ -655,7 +660,8 @@ export class Server {
         // Send error response to client
         this.sendResponse(ws, actionId, undefined, {
           code: "REPLAY_ERROR",
-          message: error instanceof Error ? error.message : "Unknown replay error",
+          message:
+            error instanceof Error ? error.message : "Unknown replay error",
         });
       } finally {
         // Clean up
@@ -668,7 +674,6 @@ export class Server {
   close(): Promise<void> {
     return new Promise((resolve) => {
       this.wss.close(() => {
-        this.db.close();
         resolve();
       });
     });

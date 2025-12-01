@@ -67,11 +67,16 @@ export class MarketDatabase {
   private readonly symbols: string[] | undefined;
   private readonly config: DatabaseConfig;
   private readonly table: string;
+  private readonly dbPath: string;
 
-  constructor(dbPath?: string, symbols?: string[], table: string = "ohlcv_5m") {
+  constructor(
+    dbPath?: string,
+    symbols?: string[],
+    table: string = "ohlcv_15m"
+  ) {
     this.config = loadConfig();
-    const path = dbPath ?? this.config.dbPath;
-    this.db = new Database(path, { readonly: true });
+    this.dbPath = dbPath ?? this.config.dbPath;
+    this.db = new Database(this.dbPath, { readonly: true });
     this.symbols = symbols ?? undefined;
 
     // Validate table name against available tables
@@ -115,6 +120,13 @@ export class MarketDatabase {
 
   close(): void {
     this.db.close();
+  }
+
+  /**
+   * Get database path.
+   */
+  getDbPath(): string {
+    return this.dbPath;
   }
 
   /**

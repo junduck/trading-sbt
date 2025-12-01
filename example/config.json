@@ -1,5 +1,5 @@
 {
-  "dbPath": "cn_data.db",
+  "dbPath": "sample_data.db",
   "price": "close",
   "timestamp": "timestamp",
   "epoch": "s"
