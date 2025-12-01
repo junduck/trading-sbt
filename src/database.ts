@@ -88,14 +88,10 @@ export class MarketDatabase {
     const rows = this.batchStmt.all(...params) as OHLCVRow[];
 
     return rows.map((row) => ({
-      symbol: row.symbol,
+      ...row,
       timestamp: new Date(row.timestamp * 1000),
       price: row.close,
-      bid: row.close,
-      ask: row.close,
-      last: row.close,
-      volume: row.volume,
-    }));
+    })) as MarketQuote[];
   }
 
   /**
