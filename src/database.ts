@@ -1,50 +1,90 @@
 import Database from "better-sqlite3";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { readFileSync, existsSync } from "node:fs";
 import type { MarketQuote } from "@junduck/trading-core/trading";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-interface OHLCVRow {
-  symbol: string;
-  timestamp: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-  turnover: number;
-  datetime_str: string;
+export interface DatabaseConfig {
+  dbPath: string;
+  price: string;
+  timestamp: string;
+  epoch: "s" | "ms" | "ISO";
+}
+
+export function parseTime(t: any, epoch: "s" | "ms" | "ISO"): Date {
+  switch (epoch) {
+    case "ISO":
+      return new Date(t as string);
+    case "s":
+      return new Date((t as number) * 1000);
+    case "ms":
+      return new Date(t as number);
+  }
+}
+
+/**
+ * Load database configuration from environment or default location.
+ */
+function loadConfig(): DatabaseConfig {
+  const configPath =
+    process.env["SBT_CONFIG"] ?? join(process.cwd(), "config.json");
+
+  if (!existsSync(configPath)) {
+    // Default fallback config
+    return {
+      dbPath: join(__dirname, "..", "fixtures", "cn_data.db"),
+      price: "close",
+      timestamp: "timestamp",
+      epoch: "s",
+    };
+  }
+
+  const configData = readFileSync(configPath, "utf-8");
+  const config = JSON.parse(configData) as DatabaseConfig;
+
+  // Resolve relative dbPath from config file location
+  if (!config.dbPath.startsWith("/")) {
+    const configDir = dirname(configPath);
+    config.dbPath = join(configDir, config.dbPath);
+  }
+
+  return config;
 }
 
 /**
  * Database connection for market data.
- * Points to fixtures/cn_data.db for development/testing.
+ * Supports dynamic configuration via config.json.
  */
 export class MarketDatabase {
   private readonly db: Database.Database;
   private readonly timestampsStmt: Database.Statement;
   private readonly batchStmt: Database.Statement;
   private readonly symbols: string[] | undefined;
+  private readonly config: DatabaseConfig;
+  private readonly table: string;
 
-  constructor(dbPath?: string, symbols?: string[]) {
-    const path = dbPath ?? join(__dirname, "..", "fixtures", "cn_data.db");
+  constructor(dbPath?: string, symbols?: string[], table: string = "ohlcv_5m") {
+    this.config = loadConfig();
+    const path = dbPath ?? this.config.dbPath;
     this.db = new Database(path, { readonly: true });
     this.symbols = symbols ?? undefined;
+    this.table = table;
 
     this.timestampsStmt = this.db.prepare(`
-      SELECT DISTINCT timestamp
-      FROM ohlcv_5m
-      WHERE timestamp >= ? AND timestamp <= ?
-      ORDER BY timestamp ASC
+      SELECT DISTINCT ${this.config.timestamp}
+      FROM ${this.table}
+      WHERE ${this.config.timestamp} >= ? AND ${this.config.timestamp} <= ?
+      ORDER BY ${this.config.timestamp} ASC
     `);
 
     // Prepare batch statement with optional symbol filter
     let batchQuery = `
-      SELECT symbol, timestamp, open, high, low, close, volume, turnover, datetime_str
-      FROM ohlcv_5m
-      WHERE timestamp = ?
+      SELECT *
+      FROM ${this.table}
+      WHERE ${this.config.timestamp} = ?
     `;
 
     if (symbols && symbols.length > 0) {
@@ -77,6 +117,7 @@ export class MarketDatabase {
 
   /**
    * Get OHLCV data for a specific timestamp, filtered by symbols if provided in constructor.
+   * Dynamically maps all columns from database row using config.
    */
   getBatchByTimestamp(timestamp: number): MarketQuote[] {
     const params: (number | string)[] = [timestamp];
@@ -85,12 +126,12 @@ export class MarketDatabase {
       params.push(...this.symbols);
     }
 
-    const rows = this.batchStmt.all(...params) as OHLCVRow[];
+    const rows = this.batchStmt.all(...params) as Array<Record<string, any>>;
 
     return rows.map((row) => ({
       ...row,
-      timestamp: new Date(row.timestamp * 1000),
-      price: row.close,
+      timestamp: parseTime(row[this.config.timestamp], this.config.epoch),
+      price: row[this.config.price],
     })) as MarketQuote[];
   }
 

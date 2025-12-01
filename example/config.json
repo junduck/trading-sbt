@@ -1,0 +1,6 @@
+{
+  "dbPath": "cn_data.db",
+  "price": "close",
+  "timestamp": "timestamp",
+  "epoch": "s"
+}

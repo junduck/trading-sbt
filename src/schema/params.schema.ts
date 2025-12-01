@@ -55,6 +55,7 @@ export const ReplayParamsSchema = z.object({
   to: z.string().datetime(),
   interval: z.number().positive(),
   replay_id: z.string(),
+  table: z.string(),
 });
 
 export type InitParams = z.infer<typeof InitParamsSchema>;

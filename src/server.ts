@@ -539,7 +539,7 @@ export class Server {
       );
       if (!validated) return;
 
-      const { from, to, interval, replay_id } = validated;
+      const { from, to, interval, replay_id, table } = validated;
 
       // Reject if there's already an active replay on this connection
       if (this.activeReplays.has(ws)) {
@@ -567,8 +567,8 @@ export class Server {
       // Mark replay as active
       this.activeReplays.set(ws, replay_id);
 
-      // Create database instance for this replay with symbol filter
-      const replayDb = new MarketDatabase(undefined, symbols);
+      // Create database instance for this replay with symbol filter and table
+      const replayDb = new MarketDatabase(undefined, symbols, table);
 
       const replayBegin = this.serverTime;
 
