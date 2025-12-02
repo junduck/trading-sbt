@@ -29,8 +29,23 @@ const server = createServer(8080, config);
 
 console.log("Server is running. Press Ctrl+C to stop.");
 
+// Handle graceful shutdown
+let shutdownInProgress = false;
 process.on("SIGINT", async () => {
+  if (shutdownInProgress) {
+    console.log("\nForce shutting down...");
+    process.exit(1);
+  }
+
+  shutdownInProgress = true;
   console.log("\nShutting down server...");
-  await server.close();
-  process.exit(0);
+
+  try {
+    await server.close();
+    console.log("Server closed successfully");
+    process.exit(0);
+  } catch (error) {
+    console.error("Error during shutdown:", error);
+    process.exit(1);
+  }
 });
