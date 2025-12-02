@@ -11,6 +11,7 @@ export const replayHandler: Handler = async (context, params) => {
     ws,
     actionId,
     dataSourceConfig,
+    dataSourcePool,
     activeReplays,
     validateParams,
     sendResponse,
@@ -60,7 +61,7 @@ export const replayHandler: Handler = async (context, params) => {
   // Create data source instance for this replay with symbol filter and table
   let replayDb;
   try {
-    replayDb = await createDataSource(dataSourceConfig, symbols, table);
+    replayDb = await createDataSource(dataSourceConfig, dataSourcePool, symbols, table);
   } catch (error) {
     activeReplays.delete(ws);
     sendError(

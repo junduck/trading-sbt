@@ -24,9 +24,11 @@ export class SQLiteReplayDataSource extends ReplayDataSource {
 
   /**
    * Create and initialize a SQLite datasource.
+   * SQLite doesn't use connection pools, so pool parameter is ignored.
    */
   static async create(
     config: DataSourceConfig,
+    _pool: undefined,
     symbols?: string[],
     table?: string
   ): Promise<SQLiteReplayDataSource> {

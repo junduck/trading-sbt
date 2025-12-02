@@ -4,8 +4,6 @@ import type { DataSourceConfig } from "../schema/data-source.schema.js";
 import { ReplayDataSource } from "./replay-datasource.js";
 import { toDate } from "../utils.js";
 
-const { Pool } = pg;
-
 /**
  * PostgreSQL implementation of ReplayDataSource.
  */
@@ -13,40 +11,31 @@ export class PostgresReplayDataSource extends ReplayDataSource {
   private readonly pool: pg.Pool;
   private fullTable!: string;
 
-  private constructor(config: DataSourceConfig, symbols?: string[], table?: string) {
+  private constructor(
+    config: DataSourceConfig,
+    pool: pg.Pool,
+    symbols?: string[],
+    table?: string
+  ) {
     if (config.type !== "postgres") {
       throw new Error(`Expected PostgreSQL config, got ${config.type}`);
     }
 
     super(config, symbols, table);
-
-    // Build connection config
-    const poolConfig: pg.PoolConfig = {
-      database: config.database,
-      user: config.username,
-      password: config.password,
-    };
-
-    if (config.conn === "tcp") {
-      poolConfig.host = config.host;
-      poolConfig.port = config.port;
-      poolConfig.ssl = config.ssl ? { rejectUnauthorized: false } : false;
-    } else {
-      poolConfig.host = config.socketPath;
-    }
-
-    this.pool = new Pool(poolConfig);
+    this.pool = pool;
   }
 
   /**
    * Create and initialize a PostgreSQL datasource.
+   * Uses shared connection pool for efficiency.
    */
   static async create(
     config: DataSourceConfig,
+    pool: pg.Pool,
     symbols?: string[],
     table?: string
   ): Promise<PostgresReplayDataSource> {
-    const instance = new PostgresReplayDataSource(config, symbols, table);
+    const instance = new PostgresReplayDataSource(config, pool, symbols, table);
     await instance.initialize();
 
     if (instance.config.type !== "postgres") {
@@ -132,7 +121,8 @@ export class PostgresReplayDataSource extends ReplayDataSource {
   }
 
   async close(): Promise<void> {
-    await this.pool.end();
+    // Pool is shared, so we don't close it here
+    // The server will close it on shutdown
   }
 
   /**
