@@ -81,7 +81,7 @@ export async function closePool(pool: DataSourcePool): Promise<void> {
     return;
   }
 
-  if ('end' in pool) {
+  if ("end" in pool) {
     await pool.end();
   }
 }
@@ -91,6 +91,7 @@ export async function closePool(pool: DataSourcePool): Promise<void> {
  * Pass the shared pool from initializePool for efficient resource usage.
  */
 export async function createDataSource(
+  replayId: string,
   config: DataSourceConfig,
   pool: DataSourcePool,
   symbols?: string[],
@@ -98,11 +99,29 @@ export async function createDataSource(
 ): Promise<ReplayDataSource> {
   switch (config.type) {
     case "sqlite":
-      return await SQLiteReplayDataSource.create(config, undefined, symbols, table);
+      return await SQLiteReplayDataSource.create(
+        replayId,
+        config,
+        undefined,
+        symbols,
+        table
+      );
     case "postgres":
-      return await PostgresReplayDataSource.create(config, pool as pg.Pool, symbols, table);
+      return await PostgresReplayDataSource.create(
+        replayId,
+        config,
+        pool as pg.Pool,
+        symbols,
+        table
+      );
     case "mysql":
-      return await MySQLReplayDataSource.create(config, pool as mysql.Pool, symbols, table);
+      return await MySQLReplayDataSource.create(
+        replayId,
+        config,
+        pool as mysql.Pool,
+        symbols,
+        table
+      );
     case "csv":
       throw new Error("CSV data source not implemented yet");
     case "json":

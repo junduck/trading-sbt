@@ -242,7 +242,7 @@ export async function createServer(
 
   // Initialize pool and get available tables
   const pool = initializePool(validated.data);
-  const tempDataSource = await createDataSource(validated.data, pool);
+  const tempDataSource = await createDataSource("temp", validated.data, pool);
   const availTables = await tempDataSource.availTables();
   await tempDataSource.close();
 
@@ -267,7 +267,9 @@ export async function createServer(
 
       if (replayTables.length === 0) {
         throw new Error(
-          `None of the configured replay tables exist. Available: ${availTables.join(", ")}`
+          `None of the configured replay tables exist. Available: ${availTables.join(
+            ", "
+          )}`
         );
       }
 
@@ -290,5 +292,7 @@ export async function createServer(
   }
 
   // For CSV and JSON, implement later
-  throw new Error(`Data source type '${validated.data.type}' not fully implemented yet`);
+  throw new Error(
+    `Data source type '${validated.data.type}' not fully implemented yet`
+  );
 }
