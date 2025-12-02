@@ -8,7 +8,6 @@ import {
 import {
   initializePool,
   closePool,
-  createDataSource,
   type DataSourcePool,
 } from "./datasource/index.js";
 import { logger } from "./logger.js";
@@ -28,6 +27,7 @@ import {
   type Handler,
   type HandlerContext,
 } from "./handlers/index.js";
+import { getAvailTables } from "./utils.js";
 
 export class Server {
   private readonly wss: WebSocketServer;
@@ -242,9 +242,7 @@ export async function createServer(
 
   // Initialize pool and get available tables
   const pool = initializePool(validated.data);
-  const tempDataSource = await createDataSource("temp", validated.data, pool);
-  const availTables = await tempDataSource.availTables();
-  await tempDataSource.close();
+  const availTables = await getAvailTables(validated.data, pool);
 
   // Only filter tables for datasources that support replay config
   if (

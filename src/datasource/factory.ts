@@ -90,37 +90,31 @@ export async function closePool(pool: DataSourcePool): Promise<void> {
  * Factory function to create the appropriate ReplayDataSource instance.
  * Pass the shared pool from initializePool for efficient resource usage.
  */
-export async function createDataSource(
+export function createDataSource(
   replayId: string,
   config: DataSourceConfig,
   pool: DataSourcePool,
-  symbols?: string[],
-  table?: string
-): Promise<ReplayDataSource> {
+  table: string,
+  symbols: string[]
+): ReplayDataSource {
   switch (config.type) {
     case "sqlite":
-      return await SQLiteReplayDataSource.create(
-        replayId,
-        config,
-        undefined,
-        symbols,
-        table
-      );
+      return new SQLiteReplayDataSource(replayId, config, table, symbols);
     case "postgres":
-      return await PostgresReplayDataSource.create(
+      return new PostgresReplayDataSource(
         replayId,
         config,
         pool as pg.Pool,
-        symbols,
-        table
+        table,
+        symbols
       );
     case "mysql":
-      return await MySQLReplayDataSource.create(
+      return new MySQLReplayDataSource(
         replayId,
         config,
         pool as mysql.Pool,
-        symbols,
-        table
+        table,
+        symbols
       );
     case "csv":
       throw new Error("CSV data source not implemented yet");

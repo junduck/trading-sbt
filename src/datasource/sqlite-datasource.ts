@@ -9,79 +9,46 @@ import { toDate } from "../utils.js";
  */
 export class SQLiteReplayDataSource extends ReplayDataSource {
   private readonly db: Database.Database;
-  private epochsStmt!: Database.Statement;
-  private batchStmt!: Database.Statement;
+  private readonly epochsStmt: Database.Statement;
+  private readonly batchStmt: Database.Statement;
 
-  private constructor(
+  constructor(
     id: string,
     config: DataSourceConfig,
-    symbols?: string[],
-    table?: string
+    table: string,
+    symbols: string[]
   ) {
     if (config.type !== "sqlite") {
       throw new Error(`Expected SQLite config, got ${config.type}`);
     }
 
-    super(id, config, symbols, table);
+    super(id, config, table, symbols);
 
     this.db = new Database(config.filePath, { readonly: true });
-  }
-
-  /**
-   * Create and initialize a SQLite datasource.
-   * SQLite doesn't use connection pools, so pool parameter is ignored.
-   */
-  static async create(
-    id: string,
-    config: DataSourceConfig,
-    _pool: undefined,
-    symbols?: string[],
-    table?: string
-  ): Promise<SQLiteReplayDataSource> {
-    const instance = new SQLiteReplayDataSource(id, config, symbols, table);
-    await instance.initialize();
 
     // Prepare epochs query
-    instance.epochsStmt = instance.db.prepare(`
-      SELECT DISTINCT ${instance.rep.epochColumn}
-      FROM ${instance.table}
-      WHERE ${instance.rep.epochColumn} >= ? AND ${instance.rep.epochColumn} <= ?
-      ORDER BY ${instance.rep.epochColumn} ASC
+    this.epochsStmt = this.db.prepare(`
+      SELECT DISTINCT ${this.rep.epochColumn}
+      FROM ${this.table}
+      WHERE ${this.rep.epochColumn} >= ? AND ${this.rep.epochColumn} <= ?
+      ORDER BY ${this.rep.epochColumn} ASC
     `);
 
     // Prepare batch query with optional symbol filter
     let batchQuery = `
       SELECT *
-      FROM ${instance.table}
-      WHERE ${instance.rep.epochColumn} = ?
+      FROM ${this.table}
+      WHERE ${this.rep.epochColumn} = ?
     `;
 
-    if (symbols && symbols.length > 0) {
+    if (symbols.length > 0) {
       const placeholders = symbols.map(() => "?").join(", ");
-      batchQuery += ` AND ${instance.rep.symbolColumn} IN (${placeholders})`;
+      batchQuery += ` AND ${this.rep.symbolColumn} IN (${placeholders})`;
     }
 
-    batchQuery += ` ORDER BY ${instance.rep.symbolColumn} ASC`;
+    batchQuery += ` ORDER BY ${this.rep.symbolColumn} ASC`;
 
-    instance.batchStmt = instance.db.prepare(batchQuery);
-
-    return instance;
-  }
-
-  protected async getDefaultTable(): Promise<string> {
-    const tables = await this.availTables();
-    if (tables.length === 0) {
-      throw new Error("No tables found in SQLite database");
-    }
-    return tables[0]!;
-  }
-
-  async availTables(): Promise<string[]> {
-    const tables = this.db
-      .prepare("SELECT name FROM sqlite_master WHERE type='table'")
-      .pluck()
-      .all() as string[];
-    return tables;
+    this.batchStmt = this.db.prepare(batchQuery);
   }
 
   async getEpochs(from: Date, to: Date): Promise<number[]> {

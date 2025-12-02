@@ -79,8 +79,8 @@ export const replayHandler: Handler = async (context, params) => {
       replay_id,
       dataSourceConfig,
       dataSourcePool,
-      symbols,
-      table
+      table,
+      symbols
     );
   } catch (error) {
     activeReplays.delete(ws);

@@ -9,72 +9,22 @@ import { toDate } from "../utils.js";
  */
 export class PostgresReplayDataSource extends ReplayDataSource {
   private readonly pool: pg.Pool;
-  private fullTable!: string;
+  private readonly fullTable: string;
 
-  private constructor(
+  constructor(
     id: string,
     config: DataSourceConfig,
     pool: pg.Pool,
-    symbols?: string[],
-    table?: string
+    table: string,
+    symbols: string[]
   ) {
     if (config.type !== "postgres") {
       throw new Error(`Expected PostgreSQL config, got ${config.type}`);
     }
 
-    super(id, config, symbols, table);
+    super(id, config, table, symbols);
     this.pool = pool;
-  }
-
-  /**
-   * Create and initialize a PostgreSQL datasource.
-   * Uses shared connection pool for efficiency.
-   */
-  static async create(
-    id: string,
-    config: DataSourceConfig,
-    pool: pg.Pool,
-    symbols?: string[],
-    table?: string
-  ): Promise<PostgresReplayDataSource> {
-    const instance = new PostgresReplayDataSource(
-      id,
-      config,
-      pool,
-      symbols,
-      table
-    );
-    await instance.initialize();
-
-    if (instance.config.type !== "postgres") {
-      throw new Error("Invalid config type");
-    }
-
-    // Set full table name with schema
-    instance.fullTable = `${instance.config.schema}.${instance.table}`;
-
-    return instance;
-  }
-
-  protected async getDefaultTable(): Promise<string> {
-    const tables = await this.availTables();
-    if (tables.length === 0) {
-      throw new Error("No tables found in PostgreSQL database");
-    }
-    return tables[0]!;
-  }
-
-  async availTables(): Promise<string[]> {
-    if (this.config.type !== "postgres") {
-      throw new Error("Invalid config type");
-    }
-
-    const result = await this.pool.query<{ tablename: string }>(
-      "SELECT tablename FROM pg_tables WHERE schemaname = $1 ORDER BY tablename",
-      [this.config.schema]
-    );
-
-    return result.rows.map((row) => row.tablename);
+    this.fullTable = `${config.schema}.${table}`;
   }
 
   async getEpochs(from: Date, to: Date): Promise<number[]> {

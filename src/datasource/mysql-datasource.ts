@@ -10,62 +10,19 @@ import { toDate } from "../utils.js";
 export class MySQLReplayDataSource extends ReplayDataSource {
   private readonly pool: mysql.Pool;
 
-  private constructor(
+  constructor(
     id: string,
     config: DataSourceConfig,
     pool: mysql.Pool,
-    symbols?: string[],
-    table?: string
+    table: string,
+    symbols: string[]
   ) {
     if (config.type !== "mysql") {
       throw new Error(`Expected MySQL config, got ${config.type}`);
     }
 
-    super(id, config, symbols, table);
+    super(id, config, table, symbols);
     this.pool = pool;
-  }
-
-  /**
-   * Create and initialize a MySQL datasource.
-   * Uses shared connection pool for efficiency.
-   */
-  static async create(
-    id: string,
-    config: DataSourceConfig,
-    pool: mysql.Pool,
-    symbols?: string[],
-    table?: string
-  ): Promise<MySQLReplayDataSource> {
-    const instance = new MySQLReplayDataSource(
-      id,
-      config,
-      pool,
-      symbols,
-      table
-    );
-    await instance.initialize();
-    return instance;
-  }
-
-  protected async getDefaultTable(): Promise<string> {
-    const tables = await this.availTables();
-    if (tables.length === 0) {
-      throw new Error("No tables found in MySQL database");
-    }
-    return tables[0]!;
-  }
-
-  async availTables(): Promise<string[]> {
-    if (this.config.type !== "mysql") {
-      throw new Error("Invalid config type");
-    }
-
-    const [rows] = await this.pool.query<mysql.RowDataPacket[]>(
-      "SELECT table_name FROM information_schema.tables WHERE table_schema = ? ORDER BY table_name",
-      [this.config.database]
-    );
-
-    return rows.map((row) => row["table_name"] as string);
   }
 
   async getEpochs(from: Date, to: Date): Promise<number[]> {

@@ -12,43 +12,22 @@ import { toEpoch } from "../utils.js";
 export abstract class ReplayDataSource {
   protected readonly config: DataSourceConfig;
   protected readonly rep: DataRep;
-  protected readonly symbols?: string[] | undefined;
-  protected table!: string;
-  protected replayId: string;
+  protected readonly symbols: string[];
+  protected readonly table: string;
+  protected readonly replayId: string;
 
   constructor(
     id: string,
     config: DataSourceConfig,
-    symbols?: string[],
-    table?: string
+    table: string,
+    symbols: string[]
   ) {
     this.config = config;
     this.rep = config.mapping;
+    this.table = table;
     this.symbols = symbols;
-    if (table) {
-      this.table = table;
-    }
     this.replayId = id;
   }
-
-  /**
-   * Initialize the datasource (must be called after construction if table wasn't provided).
-   */
-  protected async initialize(): Promise<void> {
-    if (!this.table) {
-      this.table = await this.getDefaultTable();
-    }
-  }
-
-  /**
-   * Get available tables/datasets in the data source.
-   */
-  abstract availTables(): Promise<string[]>;
-
-  /**
-   * Get default table name for this data source.
-   */
-  protected abstract getDefaultTable(): Promise<string>;
 
   /**
    * Get unique epoch timestamps within a date range.
