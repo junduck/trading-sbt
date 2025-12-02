@@ -1,20 +1,21 @@
 import type { DataSourceConfig } from "../schema/data-source.schema.js";
 import type { ReplayDataSource } from "./replay-datasource.js";
 import { SQLiteReplayDataSource } from "./sqlite-datasource.js";
+import { PostgresReplayDataSource } from "./postgres-datasource.js";
 
 /**
  * Factory function to create the appropriate ReplayDataSource instance based on config type.
  */
-export function createDataSource(
+export async function createDataSource(
   config: DataSourceConfig,
   symbols?: string[],
   table?: string
-): ReplayDataSource {
+): Promise<ReplayDataSource> {
   switch (config.type) {
     case "sqlite":
-      return new SQLiteReplayDataSource(config, symbols, table);
+      return await SQLiteReplayDataSource.create(config, symbols, table);
     case "postgres":
-      throw new Error("PostgreSQL data source not implemented yet");
+      return await PostgresReplayDataSource.create(config, symbols, table);
     case "mysql":
       throw new Error("MySQL data source not implemented yet");
     case "csv":

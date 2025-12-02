@@ -7,8 +7,9 @@ import { readFileSync, existsSync } from "node:fs";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Load data source config from example/config.json
-const configPath = join(__dirname, "config.json");
+// Load data source config from environment or default to config.json
+const configFile = process.env.CONFIG_FILE || "config.json";
+const configPath = join(__dirname, configFile);
 
 if (!existsSync(configPath)) {
   console.error(`Config file not found at ${configPath}`);
