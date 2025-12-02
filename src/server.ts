@@ -1,6 +1,8 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { Session } from "./session.js";
 import type { Request, Response, WSEvent } from "./protocol.js";
+import { DataSourceSchema, type DataSourceConfig } from "./schema/data-source.schema.js";
+import { logger } from "./logger.js";
 import {
   initHandler,
   loginHandler,
@@ -22,32 +24,40 @@ export class Server {
   private readonly wss: WebSocketServer;
   private readonly connectionSessions = new WeakMap<WebSocket, Session>();
   private readonly activeReplays = new WeakMap<WebSocket, string>();
-  private readonly dbPath: string | undefined;
+  private readonly dataSourceConfig: DataSourceConfig;
 
-  constructor(port: number = 8080, dbPath?: string) {
+  constructor(port: number = 8080, dataSourceConfig: DataSourceConfig) {
+    // Validate data source config
+    const validated = DataSourceSchema.safeParse(dataSourceConfig);
+    if (!validated.success) {
+      throw new Error(
+        `Invalid data source configuration: ${validated.error.message}`
+      );
+    }
+
     this.wss = new WebSocketServer({ port });
     this.wss.on("connection", (ws: WebSocket) => this.handleConnection(ws));
-    this.dbPath = dbPath;
-    console.log(`WebSocket server started on port ${port}`);
+    this.dataSourceConfig = validated.data;
+    logger.info({ port, dataSource: validated.data.type }, "WebSocket server started");
   }
 
   private handleConnection(ws: WebSocket): void {
     const session = new Session();
     this.connectionSessions.set(ws, session);
 
-    console.log("Client connected");
+    logger.info("Client connected");
 
     ws.on("message", (data: Buffer) => {
       this.handleMessage(ws, session, data.toString());
     });
 
     ws.on("close", () => {
-      console.log("Client disconnected");
+      logger.info("Client disconnected");
       session.cleanup();
     });
 
     ws.on("error", (error) => {
-      console.error("WebSocket error:", error);
+      logger.error({ err: error }, "WebSocket error");
     });
   }
 
@@ -66,7 +76,7 @@ export class Server {
         session,
         ws,
         actionId: action_id,
-        dbPath: this.dbPath,
+        dataSourceConfig: this.dataSourceConfig,
         activeReplays: this.activeReplays,
         sendResponse: this.sendResponse.bind(this),
         sendError: this.sendError.bind(this),
@@ -76,7 +86,7 @@ export class Server {
 
       handler(context, params);
     } catch (error) {
-      console.error("Error handling message:", error);
+      logger.error({ err: error }, "Error handling message");
     }
   }
 
@@ -95,6 +105,7 @@ export class Server {
     code: string,
     message: string
   ): void {
+    logger.error({ actionId, code, message }, "Error response sent to client");
     const response: Response = {
       type: "response",
       action_id: actionId,
@@ -160,6 +171,6 @@ export class Server {
   }
 }
 
-export function createServer(port: number = 8080, dbPath?: string): Server {
-  return new Server(port, dbPath);
+export function createServer(port: number = 8080, dataSourceConfig: DataSourceConfig): Server {
+  return new Server(port, dataSourceConfig);
 }
