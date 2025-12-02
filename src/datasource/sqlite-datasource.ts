@@ -35,15 +35,6 @@ export class SQLiteReplayDataSource extends ReplayDataSource {
     const instance = new SQLiteReplayDataSource(config, symbols, table);
     await instance.initialize();
 
-    // Validate table exists
-    const availableTables = await instance.availTables();
-    if (!availableTables.includes(instance.table)) {
-      instance.db.close();
-      throw new Error(
-        `Table '${instance.table}' not found. Available tables: ${availableTables.join(", ")}`
-      );
-    }
-
     // Prepare epochs query
     instance.epochsStmt = instance.db.prepare(`
       SELECT DISTINCT ${instance.rep.epochColumn}

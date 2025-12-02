@@ -25,7 +25,19 @@ if (config.type === "sqlite" && config.filePath) {
   config.filePath = join(__dirname, config.filePath);
 }
 
-const server = createServer(8080, config);
+let server;
+try {
+  server = await createServer(8080, config);
+} catch (error) {
+  console.error("Failed to start server:");
+  if (error instanceof Error) {
+    console.error(`  ${error.message}`);
+  } else {
+    console.error(`  ${error}`);
+  }
+  console.error("\nPlease check your configuration and database connection.");
+  process.exit(1);
+}
 
 console.log("Server is running. Press Ctrl+C to stop.");
 

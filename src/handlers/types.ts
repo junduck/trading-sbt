@@ -10,6 +10,7 @@ export interface HandlerContext {
   actionId: number;
   dataSourceConfig: DataSourceConfig;
   dataSourcePool: DataSourcePool;
+  replayTables: string[];
   activeReplays: WeakMap<WebSocket, string>;
   sendResponse(ws: WebSocket, actionId: number, result: unknown): void;
   sendError(

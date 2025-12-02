@@ -7,5 +7,6 @@
     "priceColumn": "close",
     "epochUnit": "s",
     "timezone": "UTC"
-  }
+  },
+  "replay": ["ohlcv_15m"]
 }

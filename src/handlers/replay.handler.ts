@@ -12,6 +12,7 @@ export const replayHandler: Handler = async (context, params) => {
     actionId,
     dataSourceConfig,
     dataSourcePool,
+    replayTables,
     activeReplays,
     validateParams,
     sendResponse,
@@ -40,6 +41,19 @@ export const replayHandler: Handler = async (context, params) => {
     return;
   }
 
+  // Check table is in enabled replay tables
+  if (!replayTables.includes(table)) {
+    sendError(
+      ws,
+      actionId,
+      "INVALID_TABLE",
+      `Table '${table}' is not available. Available tables: ${replayTables.join(
+        ", "
+      )}`
+    );
+    return;
+  }
+
   // Collect all subscribed symbols from all clients on this connection
   const allSymbols = new Set<string>();
   for (const client of session.clients.values()) {
@@ -61,7 +75,12 @@ export const replayHandler: Handler = async (context, params) => {
   // Create data source instance for this replay with symbol filter and table
   let replayDb;
   try {
-    replayDb = await createDataSource(dataSourceConfig, dataSourcePool, symbols, table);
+    replayDb = await createDataSource(
+      dataSourceConfig,
+      dataSourcePool,
+      symbols,
+      table
+    );
   } catch (error) {
     activeReplays.delete(ws);
     sendError(

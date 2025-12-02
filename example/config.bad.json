@@ -2,18 +2,17 @@
   "type": "postgres",
   "conn": "tcp",
   "host": "localhost",
-  "port": 5432,
+  "port": 12321,
   "ssl": false,
-  "database": "trading",
-  "schema": "public",
-  "username": "trading",
-  "password": "trading123",
+  "database": "trading-non-exist",
+  "schema": "public-non-exist",
+  "username": "trading-non-exist",
+  "password": "trading123-non-exist",
   "mapping": {
     "symbolColumn": "symbol",
     "epochColumn": "timestamp",
     "priceColumn": "close",
     "epochUnit": "s",
     "timezone": "UTC"
-  },
-  "replay": ["ohlcv_15m", "non-existing"]
+  }
 }

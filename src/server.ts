@@ -8,6 +8,7 @@ import {
 import {
   initializePool,
   closePool,
+  createDataSource,
   type DataSourcePool,
 } from "./datasource/index.js";
 import { logger } from "./logger.js";
@@ -34,25 +35,22 @@ export class Server {
   private readonly activeReplays = new WeakMap<WebSocket, string>();
   private readonly dataSourceConfig: DataSourceConfig;
   private readonly dataSourcePool: DataSourcePool;
+  private readonly replayTables: string[];
 
-  constructor(port: number = 8080, dataSourceConfig: DataSourceConfig) {
-    // Validate data source config
-    const validated = DataSourceSchema.safeParse(dataSourceConfig);
-    if (!validated.success) {
-      throw new Error(
-        `Invalid data source configuration: ${validated.error.message}`
-      );
-    }
-
-    this.dataSourceConfig = validated.data;
-
-    // Initialize shared connection pool for database backends
-    this.dataSourcePool = initializePool(validated.data);
+  constructor(
+    port: number,
+    dataSourceConfig: DataSourceConfig,
+    dataSourcePool: DataSourcePool,
+    replayTables: string[]
+  ) {
+    this.dataSourceConfig = dataSourceConfig;
+    this.dataSourcePool = dataSourcePool;
+    this.replayTables = replayTables;
 
     this.wss = new WebSocketServer({ port });
     this.wss.on("connection", (ws: WebSocket) => this.handleConnection(ws));
     logger.info(
-      { port, dataSource: validated.data.type },
+      { port, dataSource: dataSourceConfig.type, replayTables },
       "WebSocket server started"
     );
   }
@@ -108,6 +106,7 @@ export class Server {
         actionId: action_id,
         dataSourceConfig: this.dataSourceConfig,
         dataSourcePool: this.dataSourcePool,
+        replayTables: this.replayTables,
         activeReplays: this.activeReplays,
         sendResponse: this.sendResponse.bind(this),
         sendError: this.sendError.bind(this),
@@ -229,9 +228,67 @@ export class Server {
   }
 }
 
-export function createServer(
+export async function createServer(
   port: number = 8080,
   dataSourceConfig: DataSourceConfig
-): Server {
-  return new Server(port, dataSourceConfig);
+): Promise<Server> {
+  // Validate data source config
+  const validated = DataSourceSchema.safeParse(dataSourceConfig);
+  if (!validated.success) {
+    throw new Error(
+      `Invalid data source configuration: ${validated.error.message}`
+    );
+  }
+
+  // Initialize pool and get available tables
+  const pool = initializePool(validated.data);
+  const tempDataSource = await createDataSource(validated.data, pool);
+  const availTables = await tempDataSource.availTables();
+  await tempDataSource.close();
+
+  // Only filter tables for datasources that support replay config
+  if (
+    validated.data.type === "sqlite" ||
+    validated.data.type === "postgres" ||
+    validated.data.type === "mysql"
+  ) {
+    if (availTables.length === 0) {
+      throw new Error("No tables found in data source");
+    }
+
+    // Filter tables based on replay config
+    let replayTables: string[];
+    const configuredTables = validated.data.replay;
+
+    if (configuredTables && configuredTables.length > 0) {
+      replayTables = availTables.filter((table) =>
+        configuredTables.includes(table)
+      );
+
+      if (replayTables.length === 0) {
+        throw new Error(
+          `None of the configured replay tables exist. Available: ${availTables.join(", ")}`
+        );
+      }
+
+      const missingTables = configuredTables.filter(
+        (table) => !availTables.includes(table)
+      );
+      if (missingTables.length > 0) {
+        logger.warn(
+          { missingTables, availTables },
+          "Some configured replay tables not found in data source"
+        );
+      }
+    } else {
+      replayTables = availTables;
+    }
+
+    logger.info({ replayTables }, "Available replay tables");
+
+    return new Server(port, validated.data, pool, replayTables);
+  }
+
+  // For CSV and JSON, implement later
+  throw new Error(`Data source type '${validated.data.type}' not fully implemented yet`);
 }

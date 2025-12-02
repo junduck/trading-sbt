@@ -32,6 +32,7 @@ const PostgresSchema = z.intersection(
     username: z.string().min(1, "Username cannot be empty"),
     password: z.string().optional(),
     mapping: DataRepSchema,
+    replay: z.array(z.string()).optional(),
   })
 );
 
@@ -44,6 +45,7 @@ const MySQLSchema = z.intersection(
     username: z.string().min(1, "Username cannot be empty"),
     password: z.string().optional(),
     mapping: DataRepSchema,
+    replay: z.array(z.string()).optional(),
   })
 );
 
@@ -52,6 +54,7 @@ const SQLiteSchema = z.object({
   type: z.literal("sqlite"),
   filePath: z.string().min(1, "File path cannot be empty"),
   mapping: DataRepSchema,
+  replay: z.array(z.string()).optional(),
 });
 
 // CSV
