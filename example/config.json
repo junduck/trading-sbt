@@ -1,6 +1,11 @@
 {
-  "dbPath": "sample_data.db",
-  "price": "close",
-  "timestamp": "timestamp",
-  "epoch": "s"
+  "type": "sqlite",
+  "filePath": "sample_data.db",
+  "mapping": {
+    "symbolColumn": "symbol",
+    "epochColumn": "timestamp",
+    "priceColumn": "close",
+    "epochUnit": "s",
+    "timezone": "UTC"
+  }
 }

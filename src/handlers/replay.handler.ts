@@ -1,4 +1,4 @@
-import { MarketDatabase } from "../database.js";
+import { createDataSource } from "../datasource/index.js";
 import { ReplayParamsSchema } from "../schema/index.js";
 import type { ReplayParams } from "../schema/index.js";
 import type { ReplayResult, OrderWSEvent, MarketWSEvent } from "../protocol.js";
@@ -10,7 +10,7 @@ export const replayHandler: Handler = async (context, params) => {
     session,
     ws,
     actionId,
-    dbPath,
+    dataSourceConfig,
     activeReplays,
     validateParams,
     sendResponse,
@@ -49,23 +49,34 @@ export const replayHandler: Handler = async (context, params) => {
 
   const symbols = Array.from(allSymbols);
 
-  // Convert ISO datetime to epoch seconds
-  const fromEpoch = Math.floor(new Date(from).getTime() / 1000);
-  const toEpoch = Math.floor(new Date(to).getTime() / 1000);
+  // Convert ISO datetime strings to Date objects
+  const fromDate = new Date(from);
+  const toDate = new Date(to);
+  const replayBegin = serverTime();
 
   // Mark replay as active
   activeReplays.set(ws, replay_id);
 
-  // Create database instance for this replay with symbol filter and table
-  const replayDb = new MarketDatabase(dbPath, symbols, table);
-
-  const replayBegin = serverTime();
+  // Create data source instance for this replay with symbol filter and table
+  let replayDb;
+  try {
+    replayDb = createDataSource(dataSourceConfig, symbols, table);
+  } catch (error) {
+    activeReplays.delete(ws);
+    sendError(
+      ws,
+      actionId,
+      "DATA_SOURCE_ERROR",
+      error instanceof Error ? error.message : "Failed to create data source"
+    );
+    return;
+  }
 
   try {
-    // Stream data using generator
-    for (const batch of replayDb.replayData(fromEpoch, toEpoch)) {
+    // Stream data using generator - now yields {timestamp: Date, data: MarketQuote[]}
+    for (const batch of replayDb.replayData(fromDate, toDate)) {
       const { timestamp, data } = batch;
-      const replayTime = new Date(timestamp * 1000);
+      const replayTime = timestamp;
 
       // Update broker time for all clients
       for (const client of session.clients.values()) {
