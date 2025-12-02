@@ -21,6 +21,9 @@ importers:
         specifier: ^4.1.13
         version: 4.1.13
     devDependencies:
+      '@msgpack/msgpack':
+        specifier: ^3.1.2
+        version: 3.1.2
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13
@@ -390,6 +393,10 @@ packages:
 
   '@junduck/trading-core@2.7.0':
     resolution: {integrity: sha512-XxLyo4p8GqXrXTaFsuN2dTeCwRO0pneFeX2TpYa+vx2O+8tjUrX4+X1cgmOakN4yxH4aEI1XgenZbiGSmF8KHw==}
+
+  '@msgpack/msgpack@3.1.2':
+    resolution: {integrity: sha512-JEW4DEtBzfe8HvUYecLU9e6+XJnKDlUAIve8FvPzF3Kzs6Xo/KuZkZJsDH0wJXl/qEZbeeE7edxDNY3kMs39hQ==}
+    engines: {node: '>= 18'}
 
   '@rollup/rollup-android-arm-eabi@4.53.3':
     resolution: {integrity: sha512-mRSi+4cBjrRLoaal2PnqH82Wqyb+d3HsPUN/W+WslCXsZsyHa9ZeQQX/pQsZaVIWDkPcpV6jJ+3KLbTbgnwv8w==}
@@ -1136,6 +1143,8 @@ snapshots:
       '@jridgewell/sourcemap-codec': 1.5.5
 
   '@junduck/trading-core@2.7.0': {}
+
+  '@msgpack/msgpack@3.1.2': {}
 
   '@rollup/rollup-android-arm-eabi@4.53.3':
     optional: true

@@ -1,0 +1,156 @@
+import { MarketDatabase } from "../database.js";
+import { ReplayParamsSchema } from "../schema/index.js";
+import type { ReplayParams } from "../schema/index.js";
+import type { ReplayResult, OrderWSEvent, MarketWSEvent } from "../protocol.js";
+import type { Handler } from "./types.js";
+import { serverTime } from "../utils.js";
+
+export const replayHandler: Handler = async (context, params) => {
+  const {
+    session,
+    ws,
+    actionId,
+    dbPath,
+    activeReplays,
+    validateParams,
+    sendResponse,
+    sendError,
+    sendEvent,
+  } = context;
+
+  const validated = validateParams<ReplayParams>(
+    ws,
+    actionId,
+    params,
+    ReplayParamsSchema
+  );
+  if (!validated) return;
+
+  const { from, to, interval, replay_id, table } = validated;
+
+  // Reject if there's already an active replay on this connection
+  if (activeReplays.has(ws)) {
+    sendError(
+      ws,
+      actionId,
+      "REPLAY_ALREADY_ACTIVE",
+      "A replay is already active on this connection"
+    );
+    return;
+  }
+
+  // Collect all subscribed symbols from all clients on this connection
+  const allSymbols = new Set<string>();
+  for (const client of session.clients.values()) {
+    for (const symbol of client.subscriptions) {
+      allSymbols.add(symbol);
+    }
+  }
+
+  const symbols = Array.from(allSymbols);
+
+  // Convert ISO datetime to epoch seconds
+  const fromEpoch = Math.floor(new Date(from).getTime() / 1000);
+  const toEpoch = Math.floor(new Date(to).getTime() / 1000);
+
+  // Mark replay as active
+  activeReplays.set(ws, replay_id);
+
+  // Create database instance for this replay with symbol filter and table
+  const replayDb = new MarketDatabase(dbPath, symbols, table);
+
+  const replayBegin = serverTime();
+
+  try {
+    // Stream data using generator
+    for (const batch of replayDb.replayData(fromEpoch, toEpoch)) {
+      const { timestamp, data } = batch;
+      const replayTime = new Date(timestamp * 1000);
+
+      // Update broker time for all clients
+      for (const client of session.clients.values()) {
+        client.setTime(replayTime);
+      }
+
+      // Step 1: Process pending orders for all clients and send order events
+      for (const client of session.clients.values()) {
+        // Filter quotes for this client's subscriptions
+        const clientData = data.filter((quote) =>
+          client.subscriptions.has(quote.symbol)
+        );
+
+        client.broker.setTime(replayTime);
+
+        if (clientData.length > 0) {
+          // Process pending orders with market data
+          const { updated, filled } =
+            client.broker.processPendingOrders(clientData);
+
+          // Send order event if there are updates
+          if (updated.length > 0) {
+            const event: OrderWSEvent = {
+              type: "event",
+              cid: client.cid,
+              timestamp: serverTime(),
+              data: {
+                type: "order",
+                timestamp: serverTime(),
+                updated,
+                fill: filled,
+              },
+            };
+            sendEvent(ws, event);
+          }
+        }
+      }
+
+      // Step 2: Send market data to subscribed clients
+      for (const client of session.clients.values()) {
+        // Filter quotes for this client's subscriptions
+        const clientData = data.filter((quote) =>
+          client.subscriptions.has(quote.symbol)
+        );
+
+        if (clientData.length > 0) {
+          const event: MarketWSEvent = {
+            type: "event",
+            cid: client.cid,
+            timestamp: serverTime(),
+            data: {
+              type: "market",
+              timestamp: serverTime(),
+              marketData: clientData,
+            },
+          };
+          sendEvent(ws, event);
+        }
+      }
+
+      // Backpressure control
+      await new Promise((resolve) => setTimeout(resolve, interval));
+    }
+
+    const replayEnd = serverTime();
+
+    // Send completion response
+    const result: ReplayResult = {
+      replay_finished: replay_id,
+      begin: replayBegin,
+      end: replayEnd,
+    };
+
+    sendResponse(ws, actionId, result);
+  } catch (error) {
+    // Send error response to client
+    sendError(
+      ws,
+      actionId,
+      "REPLAY_ERROR",
+      error instanceof Error ? error.message : "Unknown replay error"
+    );
+  } finally {
+    // Clean up
+    replayDb.close();
+    activeReplays.delete(ws);
+  }
+};

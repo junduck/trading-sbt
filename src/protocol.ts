@@ -45,7 +45,6 @@ export interface ExternalEvent extends BaseEvent {
 
 /**
  * WebSocket event wrapper with client routing.
- * Timestamps are Date objects, automatically serialized to ISO 8601 by JSON.stringify.
  */
 interface BaseWSEvent {
   type: "event";
