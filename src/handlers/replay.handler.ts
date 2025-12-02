@@ -76,6 +76,7 @@ export const replayHandler: Handler = async (context, params) => {
   let replayDb;
   try {
     replayDb = await createDataSource(
+      replay_id,
       dataSourceConfig,
       dataSourcePool,
       symbols,

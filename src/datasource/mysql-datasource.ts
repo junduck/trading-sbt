@@ -11,6 +11,7 @@ export class MySQLReplayDataSource extends ReplayDataSource {
   private readonly pool: mysql.Pool;
 
   private constructor(
+    id: string,
     config: DataSourceConfig,
     pool: mysql.Pool,
     symbols?: string[],
@@ -20,7 +21,7 @@ export class MySQLReplayDataSource extends ReplayDataSource {
       throw new Error(`Expected MySQL config, got ${config.type}`);
     }
 
-    super(config, symbols, table);
+    super(id, config, symbols, table);
     this.pool = pool;
   }
 
@@ -29,12 +30,19 @@ export class MySQLReplayDataSource extends ReplayDataSource {
    * Uses shared connection pool for efficiency.
    */
   static async create(
+    id: string,
     config: DataSourceConfig,
     pool: mysql.Pool,
     symbols?: string[],
     table?: string
   ): Promise<MySQLReplayDataSource> {
-    const instance = new MySQLReplayDataSource(config, pool, symbols, table);
+    const instance = new MySQLReplayDataSource(
+      id,
+      config,
+      pool,
+      symbols,
+      table
+    );
     await instance.initialize();
     return instance;
   }

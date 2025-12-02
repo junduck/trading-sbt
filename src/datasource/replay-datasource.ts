@@ -14,14 +14,21 @@ export abstract class ReplayDataSource {
   protected readonly rep: DataRep;
   protected readonly symbols?: string[] | undefined;
   protected table!: string;
+  protected replayId: string;
 
-  constructor(config: DataSourceConfig, symbols?: string[], table?: string) {
+  constructor(
+    id: string,
+    config: DataSourceConfig,
+    symbols?: string[],
+    table?: string
+  ) {
     this.config = config;
     this.rep = config.mapping;
     this.symbols = symbols;
     if (table) {
       this.table = table;
     }
+    this.replayId = id;
   }
 
   /**
@@ -98,4 +105,3 @@ export abstract class ReplayDataSource {
    */
   abstract close(): Promise<void>;
 }
-

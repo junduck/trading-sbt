@@ -12,12 +12,17 @@ export class SQLiteReplayDataSource extends ReplayDataSource {
   private epochsStmt!: Database.Statement;
   private batchStmt!: Database.Statement;
 
-  private constructor(config: DataSourceConfig, symbols?: string[], table?: string) {
+  private constructor(
+    id: string,
+    config: DataSourceConfig,
+    symbols?: string[],
+    table?: string
+  ) {
     if (config.type !== "sqlite") {
       throw new Error(`Expected SQLite config, got ${config.type}`);
     }
 
-    super(config, symbols, table);
+    super(id, config, symbols, table);
 
     this.db = new Database(config.filePath, { readonly: true });
   }
@@ -27,12 +32,13 @@ export class SQLiteReplayDataSource extends ReplayDataSource {
    * SQLite doesn't use connection pools, so pool parameter is ignored.
    */
   static async create(
+    id: string,
     config: DataSourceConfig,
     _pool: undefined,
     symbols?: string[],
     table?: string
   ): Promise<SQLiteReplayDataSource> {
-    const instance = new SQLiteReplayDataSource(config, symbols, table);
+    const instance = new SQLiteReplayDataSource(id, config, symbols, table);
     await instance.initialize();
 
     // Prepare epochs query
