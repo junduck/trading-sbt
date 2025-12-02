@@ -1,7 +1,10 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { Session } from "./session.js";
 import type { Request, Response, WSEvent } from "./protocol.js";
-import { DataSourceSchema, type DataSourceConfig } from "./schema/data-source.schema.js";
+import {
+  DataSourceSchema,
+  type DataSourceConfig,
+} from "./schema/data-source.schema.js";
 import { logger } from "./logger.js";
 import {
   initHandler,
@@ -38,7 +41,10 @@ export class Server {
     this.wss = new WebSocketServer({ port });
     this.wss.on("connection", (ws: WebSocket) => this.handleConnection(ws));
     this.dataSourceConfig = validated.data;
-    logger.info({ port, dataSource: validated.data.type }, "WebSocket server started");
+    logger.info(
+      { port, dataSource: validated.data.type },
+      "WebSocket server started"
+    );
   }
 
   private handleConnection(ws: WebSocket): void {
@@ -47,6 +53,9 @@ export class Server {
 
     logger.info("Client connected");
 
+    // Fire-and-forget message handling is safe here because:
+    // - Long-running operations (replay) have concurrency protection (activeReplays)
+    // - Sequential processing within handlers is guaranteed by await chains
     ws.on("message", (data: Buffer) => {
       this.handleMessage(ws, session, data.toString());
     });
@@ -61,14 +70,25 @@ export class Server {
     });
   }
 
-  private handleMessage(ws: WebSocket, session: Session, data: string): void {
+  private async handleMessage(
+    ws: WebSocket,
+    session: Session,
+    data: string
+  ): Promise<void> {
+    let action_id: number | undefined;
     try {
       const request: Request = JSON.parse(data);
-      const { action, action_id, params } = request;
+      action_id = request.action_id;
+      const { action, params } = request;
 
       const handler = this.handlers[action as keyof typeof this.handlers];
       if (!handler) {
-        this.sendError(ws, action_id, "INVALID_ACTION", `Unknown action: ${action}`);
+        this.sendError(
+          ws,
+          action_id,
+          "INVALID_ACTION",
+          `Unknown action: ${action}`
+        );
         return;
       }
 
@@ -84,18 +104,27 @@ export class Server {
         validateParams: this.validateParams.bind(this),
       };
 
-      handler(context, params);
+      await handler(context, params);
     } catch (error) {
       logger.error({ err: error }, "Error handling message");
+      // Send error response if we have action_id (parse succeeded)
+      if (action_id !== undefined) {
+        this.sendError(
+          ws,
+          action_id,
+          "INTERNAL_ERROR",
+          error instanceof Error ? error.message : "Internal server error"
+        );
+      }
     }
   }
 
-  private sendResponse(
-    ws: WebSocket,
-    actionId: number,
-    result: unknown
-  ): void {
-    const response: Response = { type: "response", action_id: actionId, result };
+  private sendResponse(ws: WebSocket, actionId: number, result: unknown): void {
+    const response: Response = {
+      type: "response",
+      action_id: actionId,
+      result,
+    };
     ws.send(JSON.stringify(response));
   }
 
@@ -171,6 +200,9 @@ export class Server {
   }
 }
 
-export function createServer(port: number = 8080, dataSourceConfig: DataSourceConfig): Server {
+export function createServer(
+  port: number = 8080,
+  dataSourceConfig: DataSourceConfig
+): Server {
   return new Server(port, dataSourceConfig);
 }
