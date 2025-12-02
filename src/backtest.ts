@@ -45,6 +45,7 @@ export class BacktestBroker {
   submitOrder(orders: Order[]): OrderState[] {
     const submitted: OrderState[] = [];
     for (const order of orders) {
+      order.created = this.now!;
       if (this.openOrders.get(order.id)) {
         // dup id: reject order
         submitted.push(rejectOrder(order));
@@ -126,11 +127,62 @@ export class BacktestBroker {
 
   // When new batch of market data loaded, match pending order and return exec results
   processPendingOrders(quotes: MarketQuote[]) {
+    // First, check and convert stop orders
+    const converted = this.processStopOrders(quotes);
+
+    // Then process normal orders (including converted ones)
+    const result = this.processNormalOrders(quotes);
+
+    // Combine converted orders with execution results
+    return {
+      updated: [...converted, ...result.updated],
+      filled: result.filled,
+    };
+  }
+
+  /**
+   * Check stop orders and convert to normal orders if stop condition met.
+   * STOP → MARKET, STOP_LIMIT → LIMIT
+   */
+  private processStopOrders(quotes: MarketQuote[]): OrderState[] {
+    const quoteMap = new Map(quotes.map((q) => [q.symbol, q]));
+    const converted: OrderState[] = [];
+
+    for (const state of this.openOrders.values()) {
+      if (state.type !== "STOP" && state.type !== "STOP_LIMIT") continue;
+
+      const quote = quoteMap.get(state.symbol);
+      if (!quote || !state.stopPrice) continue;
+
+      // Check if stop condition is met
+      const stopTriggered =
+        state.side === "BUY"
+          ? quote.price >= state.stopPrice
+          : quote.price <= state.stopPrice;
+
+      if (stopTriggered) {
+        // Convert order type
+        state.type = state.type === "STOP" ? "MARKET" : "LIMIT";
+        state.modified = this.now!;
+        converted.push(state);
+      }
+    }
+
+    return converted;
+  }
+
+  /**
+   * Process normal orders (MARKET and LIMIT) and execute fills
+   */
+  private processNormalOrders(quotes: MarketQuote[]) {
     const quoteMap = new Map(quotes.map((q) => [q.symbol, q]));
     const updated: OrderState[] = [];
     const filled: Fill[] = [];
 
     for (const [id, state] of Array.from(this.openOrders.entries())) {
+      // Only process normal orders (STOP orders should have been converted)
+      if (state.type !== "MARKET" && state.type !== "LIMIT") continue;
+
       const quote = quoteMap.get(state.symbol);
       if (!quote) continue;
 
@@ -139,11 +191,11 @@ export class BacktestBroker {
       if (fillPrice === null) continue;
 
       // Apply volume slippage: calculate fillable quantity
-      const fillQuant = this.calculateFillQuantity(state, quote);
+      const fillQuant = this.getFillQuantity(state, quote);
       if (fillQuant === 0) continue;
 
       // Apply price slippage: adjust fill price
-      const slippage = this.calculatePriceSlippage(
+      const slippage = this.getPriceSlippage(
         fillPrice,
         fillQuant,
         state.side,
@@ -152,7 +204,7 @@ export class BacktestBroker {
       const adjFillPrice = fillPrice + slippage;
 
       // Calculate commission
-      const commission = this.calculateCommission(adjFillPrice, fillQuant);
+      const commission = this.getCommission(adjFillPrice, fillQuant);
 
       // Fill the order, fillOrder updates state by ref (including time)
       const fill = fillOrder({
@@ -184,7 +236,8 @@ export class BacktestBroker {
   }
 
   /**
-   * Get correct match price for order, null if no match
+   * Get correct match price for normal orders (MARKET/LIMIT), null if no match.
+   * STOP orders should be converted to normal orders before calling this.
    */
   private getMatchPrice(order: Order, quote: MarketQuote): number | null {
     switch (order.type) {
@@ -203,31 +256,6 @@ export class BacktestBroker {
           return effectiveBid >= order.price ? effectiveBid : null;
         }
 
-      case "STOP":
-        if (!order.stopPrice) return null;
-        if (order.side === "BUY" && quote.price >= order.stopPrice) {
-          return quote.ask ?? quote.price;
-        }
-        if (order.side === "SELL" && quote.price <= order.stopPrice) {
-          return quote.bid ?? quote.price;
-        }
-        return null;
-
-      case "STOP_LIMIT":
-        if (!order.stopPrice || !order.price) return null;
-        const stopTriggered =
-          order.side === "BUY"
-            ? quote.price >= order.stopPrice
-            : quote.price <= order.stopPrice;
-        if (!stopTriggered) return null;
-        if (order.side === "BUY") {
-          const effectiveAsk = quote.ask ?? quote.price;
-          return effectiveAsk <= order.price ? effectiveAsk : null;
-        } else {
-          const effectiveBid = quote.bid ?? quote.price;
-          return effectiveBid >= order.price ? effectiveBid : null;
-        }
-
       default:
         return null;
     }
@@ -236,7 +264,7 @@ export class BacktestBroker {
   /**
    * Calculate maximum fillable quantity based on volume constraints
    */
-  private calculateFillQuantity(state: OrderState, quote: MarketQuote): number {
+  private getFillQuantity(state: OrderState, quote: MarketQuote): number {
     const volumeConfig = this.config.slippage?.volume;
     if (!volumeConfig || !quote.volume) {
       return state.remainingQuantity;
@@ -262,7 +290,7 @@ export class BacktestBroker {
   /**
    * Calculate price slippage adjustment
    */
-  private calculatePriceSlippage(
+  private getPriceSlippage(
     price: number,
     quant: number,
     side: "BUY" | "SELL",
@@ -291,7 +319,7 @@ export class BacktestBroker {
   /**
    * Calculate commission for a trade
    */
-  private calculateCommission(price: number, quant: number): number {
+  private getCommission(price: number, quant: number): number {
     const notional = price * quant;
     const commission = this.config.commission;
 
