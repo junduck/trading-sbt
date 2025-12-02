@@ -12,6 +12,7 @@ export class PostgresReplayDataSource extends ReplayDataSource {
   private fullTable!: string;
 
   private constructor(
+    id: string,
     config: DataSourceConfig,
     pool: pg.Pool,
     symbols?: string[],
@@ -21,7 +22,7 @@ export class PostgresReplayDataSource extends ReplayDataSource {
       throw new Error(`Expected PostgreSQL config, got ${config.type}`);
     }
 
-    super(config, symbols, table);
+    super(id, config, symbols, table);
     this.pool = pool;
   }
 
@@ -30,12 +31,19 @@ export class PostgresReplayDataSource extends ReplayDataSource {
    * Uses shared connection pool for efficiency.
    */
   static async create(
+    id: string,
     config: DataSourceConfig,
     pool: pg.Pool,
     symbols?: string[],
     table?: string
   ): Promise<PostgresReplayDataSource> {
-    const instance = new PostgresReplayDataSource(config, pool, symbols, table);
+    const instance = new PostgresReplayDataSource(
+      id,
+      config,
+      pool,
+      symbols,
+      table
+    );
     await instance.initialize();
 
     if (instance.config.type !== "postgres") {
@@ -73,38 +81,49 @@ export class PostgresReplayDataSource extends ReplayDataSource {
     const fromEpoch = this.dateToEpoch(from);
     const toEpoch = this.dateToEpoch(to);
 
-    const query = `
-      SELECT DISTINCT ${this.rep.epochColumn}
-      FROM ${this.fullTable}
-      WHERE ${this.rep.epochColumn} >= $1 AND ${this.rep.epochColumn} <= $2
-      ORDER BY ${this.rep.epochColumn} ASC
-    `;
+    const result = await this.pool.query({
+      name: `${this.replayId}_get_epochs`,
+      text: `
+        SELECT DISTINCT ${this.rep.epochColumn}
+        FROM ${this.fullTable}
+        WHERE ${this.rep.epochColumn} >= $1 AND ${this.rep.epochColumn} <= $2
+        ORDER BY ${this.rep.epochColumn} ASC
+      `,
+      values: [fromEpoch, toEpoch],
+    });
 
-    const result = await this.pool.query(query, [fromEpoch, toEpoch]);
     return result.rows.map((row) => row[this.rep.epochColumn] as number);
   }
 
   async getBatchByEpoch(epoch: number): Promise<MarketQuote[]> {
-    let query = `
-      SELECT *
-      FROM ${this.fullTable}
-      WHERE ${this.rep.epochColumn} = $1
-    `;
-
-    const params: (number | string)[] = [epoch];
+    let result;
 
     if (this.symbols && this.symbols.length > 0) {
-      // Build $2, $3, $4, ... placeholders
-      const placeholders = this.symbols
-        .map((_, i) => `$${i + 2}`)
-        .join(", ");
-      query += ` AND ${this.rep.symbolColumn} IN (${placeholders})`;
-      params.push(...this.symbols);
+      // Prepared statement with symbol filtering
+      result = await this.pool.query({
+        name: `${this.replayId}_get_batch_with_symbols`,
+        text: `
+          SELECT *
+          FROM ${this.fullTable}
+          WHERE ${this.rep.epochColumn} = $1
+            AND ${this.rep.symbolColumn} = ANY($2::text[])
+          ORDER BY ${this.rep.symbolColumn} ASC
+        `,
+        values: [epoch, this.symbols],
+      });
+    } else {
+      // Prepared statement without symbol filtering
+      result = await this.pool.query({
+        name: `${this.replayId}_get_batch_all_symbols`,
+        text: `
+          SELECT *
+          FROM ${this.fullTable}
+          WHERE ${this.rep.epochColumn} = $1
+          ORDER BY ${this.rep.symbolColumn} ASC
+        `,
+        values: [epoch],
+      });
     }
-
-    query += ` ORDER BY ${this.rep.symbolColumn} ASC`;
-
-    const result = await this.pool.query(query, params);
 
     return result.rows.map((row) => {
       const symbol = row[this.rep.symbolColumn];
