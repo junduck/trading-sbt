@@ -13,48 +13,59 @@ export abstract class ReplayDataSource {
   protected readonly config: DataSourceConfig;
   protected readonly rep: DataRep;
   protected readonly symbols?: string[] | undefined;
-  protected readonly table: string;
+  protected table!: string;
 
   constructor(config: DataSourceConfig, symbols?: string[], table?: string) {
     this.config = config;
     this.rep = config.mapping;
     this.symbols = symbols;
-    this.table = table ?? this.getDefaultTable();
+    if (table) {
+      this.table = table;
+    }
+  }
+
+  /**
+   * Initialize the datasource (must be called after construction if table wasn't provided).
+   */
+  protected async initialize(): Promise<void> {
+    if (!this.table) {
+      this.table = await this.getDefaultTable();
+    }
   }
 
   /**
    * Get available tables/datasets in the data source.
    */
-  abstract availTables(): string[];
+  abstract availTables(): Promise<string[]>;
 
   /**
    * Get default table name for this data source.
    */
-  protected abstract getDefaultTable(): string;
+  protected abstract getDefaultTable(): Promise<string>;
 
   /**
    * Get unique epoch timestamps within a date range.
    * Returns number[] for efficiency, but accepts Date parameters.
    */
-  abstract getEpochs(from: Date, to: Date): number[];
+  abstract getEpochs(from: Date, to: Date): Promise<number[]>;
 
   /**
    * Get batch data for a specific epoch timestamp.
    */
-  abstract getBatchByEpoch(epoch: number): MarketQuote[];
+  abstract getBatchByEpoch(epoch: number): Promise<MarketQuote[]>;
 
   /**
-   * Generator for replay data streaming.
+   * Async generator for replay data streaming.
    * Yields {timestamp: Date, data: MarketQuote[]} - caller doesn't handle epoch conversion.
    */
-  *replayData(
+  async *replayData(
     from: Date,
     to: Date
-  ): Generator<{ timestamp: Date; data: MarketQuote[] }> {
-    const epochs = this.getEpochs(from, to);
+  ): AsyncGenerator<{ timestamp: Date; data: MarketQuote[] }> {
+    const epochs = await this.getEpochs(from, to);
 
     for (const epoch of epochs) {
-      const data = this.getBatchByEpoch(epoch);
+      const data = await this.getBatchByEpoch(epoch);
       // Convert epoch back to Date for caller
       const timestamp = this.epochToDate(epoch);
       yield { timestamp, data };
@@ -85,6 +96,6 @@ export abstract class ReplayDataSource {
   /**
    * Close/cleanup the data source connection.
    */
-  abstract close(): void;
+  abstract close(): Promise<void>;
 }
 

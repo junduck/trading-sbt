@@ -9,10 +9,10 @@ import { toDate } from "../utils.js";
  */
 export class SQLiteReplayDataSource extends ReplayDataSource {
   private readonly db: Database.Database;
-  private readonly epochsStmt: Database.Statement;
-  private readonly batchStmt: Database.Statement;
+  private epochsStmt!: Database.Statement;
+  private batchStmt!: Database.Statement;
 
-  constructor(config: DataSourceConfig, symbols?: string[], table?: string) {
+  private constructor(config: DataSourceConfig, symbols?: string[], table?: string) {
     if (config.type !== "sqlite") {
       throw new Error(`Expected SQLite config, got ${config.type}`);
     }
@@ -20,51 +20,64 @@ export class SQLiteReplayDataSource extends ReplayDataSource {
     super(config, symbols, table);
 
     this.db = new Database(config.filePath, { readonly: true });
+  }
+
+  /**
+   * Create and initialize a SQLite datasource.
+   */
+  static async create(
+    config: DataSourceConfig,
+    symbols?: string[],
+    table?: string
+  ): Promise<SQLiteReplayDataSource> {
+    const instance = new SQLiteReplayDataSource(config, symbols, table);
+    await instance.initialize();
 
     // Validate table exists
-    const availableTables = this.availTables();
-    if (!availableTables.includes(this.table)) {
-      this.db.close();
+    const availableTables = await instance.availTables();
+    if (!availableTables.includes(instance.table)) {
+      instance.db.close();
       throw new Error(
-        `Table '${this.table}' not found. Available tables: ${availableTables.join(", ")}`
+        `Table '${instance.table}' not found. Available tables: ${availableTables.join(", ")}`
       );
     }
 
     // Prepare epochs query
-    this.epochsStmt = this.db.prepare(`
-      SELECT DISTINCT ${this.rep.epochColumn}
-      FROM ${this.table}
-      WHERE ${this.rep.epochColumn} >= ? AND ${this.rep.epochColumn} <= ?
-      ORDER BY ${this.rep.epochColumn} ASC
+    instance.epochsStmt = instance.db.prepare(`
+      SELECT DISTINCT ${instance.rep.epochColumn}
+      FROM ${instance.table}
+      WHERE ${instance.rep.epochColumn} >= ? AND ${instance.rep.epochColumn} <= ?
+      ORDER BY ${instance.rep.epochColumn} ASC
     `);
 
     // Prepare batch query with optional symbol filter
     let batchQuery = `
       SELECT *
-      FROM ${this.table}
-      WHERE ${this.rep.epochColumn} = ?
+      FROM ${instance.table}
+      WHERE ${instance.rep.epochColumn} = ?
     `;
 
     if (symbols && symbols.length > 0) {
       const placeholders = symbols.map(() => "?").join(", ");
-      batchQuery += ` AND ${this.rep.symbolColumn} IN (${placeholders})`;
+      batchQuery += ` AND ${instance.rep.symbolColumn} IN (${placeholders})`;
     }
 
-    batchQuery += ` ORDER BY ${this.rep.symbolColumn} ASC`;
+    batchQuery += ` ORDER BY ${instance.rep.symbolColumn} ASC`;
 
-    this.batchStmt = this.db.prepare(batchQuery);
+    instance.batchStmt = instance.db.prepare(batchQuery);
+
+    return instance;
   }
 
-  protected getDefaultTable(): string {
-    const tables = this.availTables();
+  protected async getDefaultTable(): Promise<string> {
+    const tables = await this.availTables();
     if (tables.length === 0) {
       throw new Error("No tables found in SQLite database");
     }
-    // TypeScript doesn't narrow array access, so we assert non-null
     return tables[0]!;
   }
 
-  availTables(): string[] {
+  async availTables(): Promise<string[]> {
     const tables = this.db
       .prepare("SELECT name FROM sqlite_master WHERE type='table'")
       .pluck()
@@ -72,13 +85,13 @@ export class SQLiteReplayDataSource extends ReplayDataSource {
     return tables;
   }
 
-  getEpochs(from: Date, to: Date): number[] {
+  async getEpochs(from: Date, to: Date): Promise<number[]> {
     const fromEpoch = this.dateToEpoch(from);
     const toEpoch = this.dateToEpoch(to);
     return this.epochsStmt.pluck().all(fromEpoch, toEpoch) as number[];
   }
 
-  getBatchByEpoch(epoch: number): MarketQuote[] {
+  async getBatchByEpoch(epoch: number): Promise<MarketQuote[]> {
     const params: (number | string)[] = [epoch];
 
     if (this.symbols && this.symbols.length > 0) {
@@ -101,7 +114,7 @@ export class SQLiteReplayDataSource extends ReplayDataSource {
     }) as MarketQuote[];
   }
 
-  close(): void {
+  async close(): Promise<void> {
     this.db.close();
   }
 

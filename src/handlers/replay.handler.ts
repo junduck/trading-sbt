@@ -60,7 +60,7 @@ export const replayHandler: Handler = async (context, params) => {
   // Create data source instance for this replay with symbol filter and table
   let replayDb;
   try {
-    replayDb = createDataSource(dataSourceConfig, symbols, table);
+    replayDb = await createDataSource(dataSourceConfig, symbols, table);
   } catch (error) {
     activeReplays.delete(ws);
     sendError(
@@ -73,8 +73,10 @@ export const replayHandler: Handler = async (context, params) => {
   }
 
   try {
-    // Stream data using generator - now yields {timestamp: Date, data: MarketQuote[]}
-    for (const batch of replayDb.replayData(fromDate, toDate)) {
+    // Stream data using async generator
+    // Order guarantee: for await ensures sequential batch processing,
+    // sendEvent calls are synchronous FIFO writes, interval provides backpressure
+    for await (const batch of replayDb.replayData(fromDate, toDate)) {
       const { timestamp, data } = batch;
       const replayTime = timestamp;
 
@@ -161,7 +163,7 @@ export const replayHandler: Handler = async (context, params) => {
     );
   } finally {
     // Clean up
-    replayDb.close();
+    await replayDb.close();
     activeReplays.delete(ws);
   }
 };
