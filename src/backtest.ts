@@ -143,6 +143,7 @@ export class BacktestBroker {
   /**
    * Check stop orders and convert to normal orders if stop condition met.
    * STOP → MARKET, STOP_LIMIT → LIMIT
+   * Returns converted orders as they updated order type
    */
   private processStopOrders(quotes: MarketQuote[]): OrderState[] {
     const quoteMap = new Map(quotes.map((q) => [q.symbol, q]));
@@ -161,10 +162,11 @@ export class BacktestBroker {
           : quote.price <= state.stopPrice;
 
       if (stopTriggered) {
-        // Convert order type
+        // Convert order type in-place
         state.type = state.type === "STOP" ? "MARKET" : "LIMIT";
         state.modified = this.now!;
-        converted.push(state);
+
+        converted.push(structuredClone(state));
       }
     }
 
