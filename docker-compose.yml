@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: trading-sbt-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: trading
+      POSTGRES_USER: trading
+      POSTGRES_PASSWORD: trading123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./fixtures/init-postgres.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trading"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  mariadb:
+    image: mariadb:11-ubi
+    container_name: trading-sbt-mariadb
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: trading
+      MARIADB_USER: trading
+      MARIADB_PASSWORD: trading123
+      MARIADB_ROOT_PASSWORD: root123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./fixtures/init-mariadb.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  mariadb_data:

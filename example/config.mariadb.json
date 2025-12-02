@@ -1,0 +1,17 @@
+{
+  "type": "mysql",
+  "conn": "tcp",
+  "host": "localhost",
+  "port": 3306,
+  "ssl": false,
+  "database": "trading",
+  "username": "trading",
+  "password": "trading123",
+  "mapping": {
+    "symbolColumn": "symbol",
+    "epochColumn": "timestamp",
+    "priceColumn": "close",
+    "epochUnit": "s",
+    "timezone": "UTC"
+  }
+}
