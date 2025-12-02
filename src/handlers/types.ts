@@ -2,12 +2,14 @@ import type { WebSocket } from "ws";
 import type { Session } from "../session.js";
 import type { WSEvent } from "../protocol.js";
 import type { DataSourceConfig } from "../schema/data-source.schema.js";
+import type { DataSourcePool } from "../datasource/index.js";
 
 export interface HandlerContext {
   session: Session;
   ws: WebSocket;
   actionId: number;
   dataSourceConfig: DataSourceConfig;
+  dataSourcePool: DataSourcePool;
   activeReplays: WeakMap<WebSocket, string>;
   sendResponse(ws: WebSocket, actionId: number, result: unknown): void;
   sendError(

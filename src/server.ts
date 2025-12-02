@@ -5,6 +5,11 @@ import {
   DataSourceSchema,
   type DataSourceConfig,
 } from "./schema/data-source.schema.js";
+import {
+  initializePool,
+  closePool,
+  type DataSourcePool,
+} from "./datasource/index.js";
 import { logger } from "./logger.js";
 import {
   initHandler,
@@ -28,6 +33,7 @@ export class Server {
   private readonly connectionSessions = new WeakMap<WebSocket, Session>();
   private readonly activeReplays = new WeakMap<WebSocket, string>();
   private readonly dataSourceConfig: DataSourceConfig;
+  private readonly dataSourcePool: DataSourcePool;
 
   constructor(port: number = 8080, dataSourceConfig: DataSourceConfig) {
     // Validate data source config
@@ -38,9 +44,13 @@ export class Server {
       );
     }
 
+    this.dataSourceConfig = validated.data;
+
+    // Initialize shared connection pool for database backends
+    this.dataSourcePool = initializePool(validated.data);
+
     this.wss = new WebSocketServer({ port });
     this.wss.on("connection", (ws: WebSocket) => this.handleConnection(ws));
-    this.dataSourceConfig = validated.data;
     logger.info(
       { port, dataSource: validated.data.type },
       "WebSocket server started"
@@ -97,6 +107,7 @@ export class Server {
         ws,
         actionId: action_id,
         dataSourceConfig: this.dataSourceConfig,
+        dataSourcePool: this.dataSourcePool,
         activeReplays: this.activeReplays,
         sendResponse: this.sendResponse.bind(this),
         sendError: this.sendError.bind(this),
@@ -191,12 +202,30 @@ export class Server {
     replay: replayHandler,
   };
 
-  close(): Promise<void> {
-    return new Promise((resolve) => {
-      this.wss.close(() => {
-        resolve();
+  async close(): Promise<void> {
+    // Close WebSocket server
+    await new Promise<void>((resolve, reject) => {
+      this.wss.close((err) => {
+        if (err) {
+          logger.error({ err }, "Error closing WebSocket server");
+          reject(err);
+        } else {
+          logger.info("WebSocket server closed");
+          resolve();
+        }
       });
     });
+
+    // Close database connection pool
+    try {
+      await closePool(this.dataSourcePool);
+      logger.info("Database connection pool closed");
+    } catch (error) {
+      logger.error({ err: error }, "Error closing database pool");
+      throw error;
+    }
+
+    logger.info("Server closed");
   }
 }
 
