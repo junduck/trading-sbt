@@ -108,6 +108,8 @@ export class Server {
         dataSourcePool: this.dataSourcePool,
         replayTables: this.replayTables,
         activeReplays: this.activeReplays,
+        DEBUG: process.env["DEBUG"] === "true",
+        logger,
         sendResponse: this.sendResponse.bind(this),
         sendError: this.sendError.bind(this),
         sendEvent: this.sendEvent.bind(this),

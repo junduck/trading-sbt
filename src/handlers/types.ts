@@ -1,4 +1,5 @@
 import type { WebSocket } from "ws";
+import type { Logger } from "pino";
 import type { Session } from "../session.js";
 import type { WSEvent } from "../protocol.js";
 import type { DataSourceConfig } from "../schema/data-source.schema.js";
@@ -12,6 +13,8 @@ export interface HandlerContext {
   dataSourcePool: DataSourcePool;
   replayTables: string[];
   activeReplays: WeakMap<WebSocket, string>;
+  DEBUG: boolean;
+  logger: Logger;
   sendResponse(ws: WebSocket, actionId: number, result: unknown): void;
   sendError(
     ws: WebSocket,
