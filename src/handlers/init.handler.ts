@@ -1,11 +1,7 @@
-import { InitParamsSchema } from "../schema/index.js";
 import type { Handler } from "./types.js";
 
-export const initHandler: Handler = (context, params) => {
-  const { ws, actionId, validateParams, sendResponse, replayTables } = context;
-
-  const validated = validateParams(ws, actionId, params, InitParamsSchema);
-  if (validated === undefined && params !== undefined) return;
+export const initHandler: Handler = (context, _params) => {
+  const { ws, actionId, sendResponse, replayTables } = context;
 
   sendResponse(ws, actionId, {
     version: "1.0.0",
