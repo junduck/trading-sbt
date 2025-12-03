@@ -115,33 +115,34 @@ export const replayHandler: Handler = async (context, params) => {
 
       // Step 1: Process pending orders for all clients and send order events
       for (const client of session.clients.values()) {
-        // Filter quotes for this client's subscriptions
-        // TODO: OPIMISATION: filter by client.position
-        const clientData = client.subscriptions.has("*")
-          ? data
-          : data.filter((quote) => client.subscriptions.has(quote.symbol));
+        const openSymbols = client.broker.getOpenSymbols();
 
-        client.broker.setTime(replayTime);
+        // Only process market data for symbols with open orders
+        if (openSymbols.size > 0) {
+          const clientData = data.filter((quote) =>
+            openSymbols.has(quote.symbol)
+          );
 
-        if (clientData.length > 0) {
-          // Process pending orders with market data
-          const { updated, filled } =
-            client.broker.processPendingOrders(clientData);
+          if (clientData.length > 0) {
+            // Process pending orders with market data
+            const { updated, filled } =
+              client.broker.processPendingOrders(clientData);
 
-          // Send order event if there are updates
-          if (updated.length > 0) {
-            const event: OrderWSEvent = {
-              type: "event",
-              cid: client.cid,
-              timestamp: serverTime(),
-              data: {
-                type: "order",
+            // Send order event if there are updates
+            if (updated.length > 0) {
+              const event: OrderWSEvent = {
+                type: "event",
+                cid: client.cid,
                 timestamp: serverTime(),
-                updated,
-                fill: filled,
-              },
-            };
-            sendEvent(ws, event);
+                data: {
+                  type: "order",
+                  timestamp: serverTime(),
+                  updated,
+                  fill: filled,
+                },
+              };
+              sendEvent(ws, event);
+            }
           }
         }
       }

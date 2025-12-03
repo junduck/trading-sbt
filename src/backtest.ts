@@ -15,6 +15,7 @@ import {
 } from "@junduck/trading-core/trading";
 
 import type { BacktestConfig } from "./schema/backtest.schema.js";
+import { DEBUG, logger } from "./logger.js";
 
 export type AmendAction = Partial<Order> & Pick<Order, "id">;
 
@@ -22,12 +23,16 @@ export class BacktestBroker {
   private config: BacktestConfig;
   private position: Position;
   private openOrders: Map<string, OrderState> = new Map(); // id -> state
+  private openSymbols: Map<string, number> = new Map(); // symbol -> no. open orders
   private orderIdCounter: number = 0;
-  private now?: Date;
+  private now: Date = new Date(0);
+
+  private readonly removeOpenSymbols: boolean;
 
   constructor(config: BacktestConfig) {
     this.config = config;
     this.position = createPosition(config.initialCash);
+    this.removeOpenSymbols = !DEBUG;
   }
 
   setTime(time: Date) {
@@ -42,6 +47,44 @@ export class BacktestBroker {
     return Array.from(this.openOrders.values());
   }
 
+  private incOpenSymbols(symbol: string) {
+    this.openSymbols.set(symbol, (this.openSymbols.get(symbol) ?? 0) + 1);
+  }
+
+  private decOpenSymbols(symbol: string) {
+    if (!this.removeOpenSymbols && (this.openSymbols.get(symbol) ?? 0) === 0) {
+      // Invariant violation: decrementing non-existent symbol
+      logger.warn(
+        {
+          symbol,
+          openOrders: Object.fromEntries(this.openOrders),
+          openSymbols: Object.fromEntries(this.openSymbols),
+          replayTime: this.now?.toISOString(),
+        },
+        "Broker invariant violation: attempting to decrement non-existent symbol"
+      );
+
+      // Patch openSymbols, invariance is already broken from this point
+      this.openSymbols.set(symbol, 1);
+    }
+
+    const count = this.openSymbols.get(symbol)! - 1;
+    this.openSymbols.set(symbol, count);
+    if (this.removeOpenSymbols && count === 0) {
+      this.openSymbols.delete(symbol);
+    }
+  }
+
+  getOpenSymbols(): Set<string> {
+    const symbols = new Set<string>();
+    for (const [symbol, count] of this.openSymbols.entries()) {
+      if (count > 0) {
+        symbols.add(symbol);
+      }
+    }
+    return symbols;
+  }
+
   submitOrder(orders: Order[]): OrderState[] {
     const submitted: OrderState[] = [];
     for (const order of orders) {
@@ -53,7 +96,9 @@ export class BacktestBroker {
         const state = acceptOrder(order);
         state.modified = this.now!;
         submitted.push(state);
+
         this.openOrders.set(order.id, state);
+        this.incOpenSymbols(order.symbol);
       }
     }
 
@@ -83,7 +128,9 @@ export class BacktestBroker {
 
       if (state.remainingQuantity < 0) {
         cancelOrder(state);
+
         this.openOrders.delete(update.id);
+        this.decOpenSymbols(state.symbol);
       }
 
       updated.push(state);
@@ -102,7 +149,9 @@ export class BacktestBroker {
       cancelOrder(state);
       state.modified = this.now!;
       cancelled.push(state);
+
       this.openOrders.delete(id);
+      this.decOpenSymbols(state.symbol);
     }
 
     return cancelled;
@@ -121,6 +170,7 @@ export class BacktestBroker {
       cancelled.push(state);
     }
     this.openOrders.clear();
+    this.openSymbols.clear();
 
     return cancelled;
   }
@@ -228,6 +278,7 @@ export class BacktestBroker {
       // Remove from pending if fully filled
       if (state.status === "FILLED") {
         this.openOrders.delete(id);
+        this.decOpenSymbols(state.symbol);
       }
     }
 
