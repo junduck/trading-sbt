@@ -45,6 +45,7 @@ export const SlippageConfigSchema = z.object({
  */
 export const BacktestConfigSchema = z.object({
   initialCash: z.number().positive(),
+  riskFree: z.number().nonnegative().optional(),
   commission: CommissionConfigSchema,
   slippage: SlippageConfigSchema.optional(),
 });

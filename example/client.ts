@@ -18,7 +18,7 @@ interface WSEvent {
   cid: string;
   timestamp: string;
   data: {
-    type: "order" | "market";
+    type: "order" | "market" | "metrics";
     timestamp: string;
     [key: string]: unknown;
   };
@@ -88,6 +88,8 @@ class TestClient {
       console.log(
         `  Orders: ${updated?.length || 0} updated, ${fill?.length || 0} filled`
       );
+    } else if (event.data.type === "metrics") {
+      console.log(JSON.stringify(event.data));
     }
   }
 
@@ -128,6 +130,7 @@ class TestClient {
       to,
       interval,
       replay_id,
+      reportPeriod: 2,
       table,
     });
     console.log("Replay finished:", result);

@@ -54,6 +54,7 @@ export const ReplayParamsSchema = z.object({
   from: z.string(),
   to: z.string(),
   interval: z.number().positive(),
+  reportPeriod: z.number().nonnegative().optional(),
   replay_id: z.string(),
   table: z.string(),
 });

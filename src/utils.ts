@@ -34,6 +34,24 @@ export function toEpoch(date: Date, rep: DataRep): number {
 }
 
 /**
+ * Convert Date to day index since Unix epoch (like R's Date type).
+ * @param date - The date to convert
+ * @param tzOffset - Timezone offset in minutes (default 480 = UTC+8 Asia/Shanghai)
+ * @returns Day index since epoch in the specified timezone, or 0 if before epoch
+ */
+export function daysSinceEpoch(date: Date, tzOffset: number = 480): number {
+  // TODO: config timezone
+  const epochSec = date.getTime() / 1000;
+  const tzOffsetSec = tzOffset * 60;
+  const localSec = epochSec + tzOffsetSec;
+
+  if (localSec < 0) {
+    return 0;
+  }
+  return Math.floor(localSec / 86400);
+}
+
+/**
  * Convert a standardized row to a MarketEvent.
  */
 export function toMarketEvent(

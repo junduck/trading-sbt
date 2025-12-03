@@ -1,9 +1,10 @@
 import { createDataSource } from "../datasource/index.js";
 import { ReplayParamsSchema } from "../schema/index.js";
 import type { ReplayParams } from "../schema/index.js";
-import type { ReplayResult, OrderWSEvent, MarketWSEvent } from "../protocol.js";
+import type { ReplayResult } from "../protocol.js";
 import type { Handler } from "./types.js";
 import { serverTime } from "../utils.js";
+import type { MarketSnapshot } from "@junduck/trading-core";
 
 export const replayHandler: Handler = async (context, params) => {
   const {
@@ -28,7 +29,14 @@ export const replayHandler: Handler = async (context, params) => {
   );
   if (!validated) return;
 
-  const { from, to, interval, replay_id, table } = validated;
+  const { from, to, interval, reportPeriod, replay_id, table } = validated;
+
+  // Configure report period for all clients
+  if (reportPeriod) {
+    for (const client of session.clients.values()) {
+      client.setReportPeriod(reportPeriod);
+    }
+  }
 
   // Reject if there's already an active replay on this connection
   if (activeReplays.has(ws)) {
@@ -101,6 +109,11 @@ export const replayHandler: Handler = async (context, params) => {
   }
 
   try {
+    const snapshot: MarketSnapshot = {
+      price: new Map(),
+      timestamp: new Date(0),
+    }; // symbol -> latest price
+
     // Stream data using async generator
     // Order guarantee: for await ensures sequential batch processing,
     // sendEvent calls are synchronous FIFO writes, interval provides backpressure
@@ -113,34 +126,24 @@ export const replayHandler: Handler = async (context, params) => {
         client.setTime(replayTime);
       }
 
-      // Step 1: Process pending orders for all clients and send order events
+      // Update price snapshot
+      for (const item of data) {
+        snapshot.price.set(item.symbol, item.price);
+      }
+      snapshot.timestamp = replayTime;
+
+      // Step 1: Process pending orders for all clients
       for (const client of session.clients.values()) {
         const openSymbols = client.broker.getOpenSymbols();
 
-        // Only process market data for symbols with open orders
         if (openSymbols.size > 0) {
           const clientData = data.filter((quote) =>
             openSymbols.has(quote.symbol)
           );
 
           if (clientData.length > 0) {
-            // Process pending orders with market data
-            const { updated, filled } =
-              client.broker.processPendingOrders(clientData);
-
-            // Send order event if there are updates
-            if (updated.length > 0) {
-              const event: OrderWSEvent = {
-                type: "event",
-                cid: client.cid,
-                timestamp: serverTime(),
-                data: {
-                  type: "order",
-                  timestamp: serverTime(),
-                  updated,
-                  fill: filled,
-                },
-              };
+            const events = client.processOrderUpdate(clientData, snapshot);
+            for (const event of events) {
               sendEvent(ws, event);
             }
           }
@@ -149,23 +152,15 @@ export const replayHandler: Handler = async (context, params) => {
 
       // Step 2: Send market data to subscribed clients
       for (const client of session.clients.values()) {
-        // Filter quotes for this client's subscriptions
         const clientData = client.subscriptions.has("*")
           ? data
           : data.filter((quote) => client.subscriptions.has(quote.symbol));
 
         if (clientData.length > 0) {
-          const event: MarketWSEvent = {
-            type: "event",
-            cid: client.cid,
-            timestamp: serverTime(),
-            data: {
-              type: "market",
-              timestamp: serverTime(),
-              marketData: clientData,
-            },
-          };
-          sendEvent(ws, event);
+          const events = client.processMarketData(clientData, snapshot);
+          for (const event of events) {
+            sendEvent(ws, event);
+          }
         }
       }
 

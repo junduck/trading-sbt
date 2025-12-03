@@ -1,5 +1,9 @@
+import { BacktestMetrics } from "./backtest-metrics.js";
 import { BacktestBroker } from "./backtest.js";
 import type { BacktestConfig } from "./schema/backtest.schema.js";
+import type { MarketQuote, MarketSnapshot } from "@junduck/trading-core";
+import type { WSEvent } from "./protocol.js";
+import { serverTime, daysSinceEpoch } from "./utils.js";
 
 /**
  * Per-client session state.
@@ -11,10 +15,27 @@ export class ClientState {
   readonly subscriptions: Set<string> = new Set();
   readonly broker: BacktestBroker;
 
+  private periodicMetrics: BacktestMetrics;
+  private tradeMetrics: BacktestMetrics;
+  private eodMetrics: BacktestMetrics;
+
+  private reportPeriod: number = 0;
+  private eventCounter: number = 0;
+  private currentDay: number = -1;
+
+  private currentReplayTime: Date = new Date(0);
+
   constructor(cid: string, config: BacktestConfig, loginTimestamp: Date) {
     this.cid = cid;
     this.loginTimestamp = loginTimestamp;
     this.broker = new BacktestBroker(config);
+
+    const initialCash = config.initialCash;
+    const riskFree = config.riskFree ?? 0;
+
+    this.periodicMetrics = new BacktestMetrics(initialCash, riskFree);
+    this.tradeMetrics = new BacktestMetrics(initialCash, riskFree);
+    this.eodMetrics = new BacktestMetrics(initialCash, riskFree);
   }
 
   addSubscriptions(symbols: string[]): string[] {
@@ -35,7 +56,128 @@ export class ClientState {
   }
 
   setTime(time: Date) {
+    this.currentReplayTime = time;
     this.broker.setTime(time);
+  }
+
+  setReportPeriod(period: number) {
+    this.reportPeriod = period;
+  }
+
+  processOrderUpdate(data: MarketQuote[], snapshot: MarketSnapshot): WSEvent[] {
+    const events: WSEvent[] = [];
+
+    const { updated, filled } = this.broker.processPendingOrders(data);
+
+    if (updated.length > 0) {
+      events.push({
+        type: "event",
+        cid: this.cid,
+        timestamp: serverTime(),
+        data: {
+          type: "order",
+          timestamp: serverTime(),
+          updated,
+          fill: filled,
+        },
+      });
+
+      const position = this.broker.getPosition();
+
+      // Update trade-biased metrics on fill events
+      if (filled.length > 0) {
+        this.tradeMetrics.update(position, snapshot);
+
+        const tradeReport = this.tradeMetrics.report(
+          "TRADE",
+          position,
+          snapshot,
+          this.currentReplayTime
+        );
+        events.push({
+          type: "event",
+          cid: this.cid,
+          timestamp: serverTime(),
+          data: {
+            type: "metrics",
+            timestamp: serverTime(),
+            report: tradeReport,
+          },
+        });
+      }
+    }
+
+    return events;
+  }
+
+  processMarketData(data: MarketQuote[], snapshot: MarketSnapshot): WSEvent[] {
+    const events: WSEvent[] = [];
+
+    events.push({
+      type: "event",
+      cid: this.cid,
+      timestamp: serverTime(),
+      data: {
+        type: "market",
+        timestamp: serverTime(),
+        marketData: data,
+      },
+    });
+
+    const position = this.broker.getPosition();
+    const day = daysSinceEpoch(snapshot.timestamp);
+
+    // Check for day change (EOD detection)
+    if (this.currentDay !== -1 && day > this.currentDay) {
+      // Emit EOD report for previous day
+      const eodReport = this.eodMetrics.report(
+        "ENDOFDAY",
+        position,
+        snapshot,
+        this.currentReplayTime
+      );
+      events.push({
+        type: "event",
+        cid: this.cid,
+        timestamp: serverTime(),
+        data: {
+          type: "metrics",
+          timestamp: serverTime(),
+          report: eodReport,
+        },
+      });
+
+      // Reset EOD metrics for new day
+      this.eodMetrics.reset();
+    }
+    this.currentDay = day;
+
+    // Update metrics (both periodic and EOD on every market data)
+    this.periodicMetrics.update(position, snapshot);
+    this.eodMetrics.update(position, snapshot);
+    this.eventCounter++;
+
+    // Emit periodic report every N events if configured
+    if (this.reportPeriod > 0 && this.eventCounter % this.reportPeriod === 0) {
+      const periodicReport = this.periodicMetrics.report(
+        "PERIODIC",
+        position,
+        snapshot,
+        this.currentReplayTime
+      );
+      events.push({
+        type: "event",
+        cid: this.cid,
+        timestamp: serverTime(),
+        data: {
+          type: "metrics",
+          timestamp: serverTime(),
+          report: periodicReport,
+        },
+      });
+    }
+
+    return events;
   }
 }
 

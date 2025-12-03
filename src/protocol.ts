@@ -4,6 +4,7 @@ import type {
   MarketQuote,
   Fill,
 } from "@junduck/trading-core/trading";
+import type { MetricsReport } from "./backtest-metrics.js";
 
 export interface Request {
   action: string;
@@ -22,7 +23,7 @@ export interface Response {
 }
 
 export interface BaseEvent {
-  type: "market" | "external" | "order";
+  type: "market" | "external" | "order" | "metrics";
   timestamp: Date;
 }
 
@@ -35,6 +36,11 @@ export interface OrderEvent extends BaseEvent {
   type: "order";
   updated: OrderState[];
   fill: Fill[];
+}
+
+export interface MetricsEvent extends BaseEvent {
+  type: "metrics";
+  report: MetricsReport;
 }
 
 export interface ExternalEvent extends BaseEvent {
@@ -60,11 +66,19 @@ export interface OrderWSEvent extends BaseWSEvent {
   data: OrderEvent;
 }
 
+export interface MetricsWSEvent extends BaseWSEvent {
+  data: MetricsEvent;
+}
+
 export interface ExternalWSEvent extends BaseWSEvent {
   data: ExternalEvent;
 }
 
-export type WSEvent = MarketWSEvent | OrderWSEvent | ExternalWSEvent;
+export type WSEvent =
+  | MarketWSEvent
+  | OrderWSEvent
+  | MetricsWSEvent
+  | ExternalWSEvent;
 
 export interface LoginResult {
   connected: boolean;
