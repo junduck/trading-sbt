@@ -56,13 +56,20 @@ export const replayHandler: Handler = async (context, params) => {
 
   // Collect all subscribed symbols from all clients on this connection
   const allSymbols = new Set<string>();
+  let hasWildcard = false;
+
   for (const client of session.clients.values()) {
+    if (client.subscriptions.has("*")) {
+      hasWildcard = true;
+      break;
+    }
     for (const symbol of client.subscriptions) {
       allSymbols.add(symbol);
     }
   }
 
-  const symbols = Array.from(allSymbols);
+  // If wildcard, query all symbols; otherwise filter by specific symbols
+  const symbols = hasWildcard ? [] : Array.from(allSymbols);
 
   // Convert ISO datetime strings to Date objects
   const fromDate = new Date(from);
@@ -109,9 +116,10 @@ export const replayHandler: Handler = async (context, params) => {
       // Step 1: Process pending orders for all clients and send order events
       for (const client of session.clients.values()) {
         // Filter quotes for this client's subscriptions
-        const clientData = data.filter((quote) =>
-          client.subscriptions.has(quote.symbol)
-        );
+        // TODO: OPIMISATION: filter by client.position
+        const clientData = client.subscriptions.has("*")
+          ? data
+          : data.filter((quote) => client.subscriptions.has(quote.symbol));
 
         client.broker.setTime(replayTime);
 
@@ -141,9 +149,9 @@ export const replayHandler: Handler = async (context, params) => {
       // Step 2: Send market data to subscribed clients
       for (const client of session.clients.values()) {
         // Filter quotes for this client's subscriptions
-        const clientData = data.filter((quote) =>
-          client.subscriptions.has(quote.symbol)
-        );
+        const clientData = client.subscriptions.has("*")
+          ? data
+          : data.filter((quote) => client.subscriptions.has(quote.symbol));
 
         if (clientData.length > 0) {
           const event: MarketWSEvent = {

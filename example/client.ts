@@ -169,7 +169,7 @@ async function main() {
 
   // Subscribe to symbols
   await client.subscribe("client1", ["000001", "600000"]);
-  await client.subscribe("client2", ["000002", "600000"]);
+  await client.subscribe("client2", ["*"]);
 
   // Start replay
   console.log("\nStarting replay...\n");

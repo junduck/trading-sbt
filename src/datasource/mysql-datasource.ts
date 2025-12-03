@@ -63,15 +63,12 @@ export class MySQLReplayDataSource extends ReplayDataSource {
     const [rows] = await this.pool.query<mysql.RowDataPacket[]>(query, params);
 
     return rows.map((row) => {
-      const symbol = row[this.rep.symbolColumn];
       const timestamp = toDate(row[this.rep.epochColumn], this.rep);
-      const price = row[this.rep.priceColumn];
-
       return {
         ...row,
-        symbol: typeof symbol === "string" ? symbol : String(symbol),
+        symbol: row[this.rep.symbolColumn],
         timestamp,
-        price: typeof price === "number" ? price : Number(price),
+        price: row[this.rep.priceColumn],
       };
     }) as MarketQuote[];
   }
