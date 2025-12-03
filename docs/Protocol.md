@@ -109,18 +109,17 @@ Declare attendance / gracefully ask server to release resources
   "result": {
     "connected": true,
     "timestamp": "2024-01-15T10:30:00.000Z",
-    "epoch": "s"
   }
 }
 ```
-
-Upon login, server declares timestamps epoch unit, client should use this info to construct Date object
 
 ### Data Provider Methods
 
 #### subscribe
 
 Subscribe to market data for specified symbols.
+
+**Wildcard Subscription:** Use `"*"` to subscribe to all available symbols.
 
 **Request:**
 
@@ -131,6 +130,19 @@ Subscribe to market data for specified symbols.
   "params": {
     "cid": "client-uuid-123",
     "symbols": ["AAPL", "MSFT"]
+  }
+}
+```
+
+**Wildcard Example:**
+
+```json
+{
+  "action": "subscribe",
+  "action_id": 2,
+  "params": {
+    "cid": "client-uuid-123",
+    "symbols": ["*"]
   }
 }
 ```
