@@ -9,11 +9,11 @@ importers:
   .:
     dependencies:
       '@junduck/trading-core':
-        specifier: ^2.8.0
-        version: 2.8.0
+        specifier: ^2.9.0
+        version: 2.9.0
       '@junduck/trading-core-serdes':
-        specifier: ^0.4.1
-        version: 0.4.1
+        specifier: ^0.5.0
+        version: 0.5.0
       better-sqlite3:
         specifier: ^12.5.0
         version: 12.5.0
@@ -409,11 +409,11 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@junduck/trading-core-serdes@0.4.1':
-    resolution: {integrity: sha512-VNpGwww+QI9+rMU0BKHF5oCBbFF9u48mXhEaatV6yybMpFXgSqW18n7t9AkAG5yxmySc4xeeRzBMZzx9F+cMRg==}
+  '@junduck/trading-core-serdes@0.5.0':
+    resolution: {integrity: sha512-rE4Rwr2EmC167euocraCH4zv8/TQEXHmBGiaVBY6HUjOI7Q5VLD7fOW7HGpFUtFYacBJtLZNOo70H3ZLoAQnbg==}
 
-  '@junduck/trading-core@2.8.0':
-    resolution: {integrity: sha512-rdGpQkpOqrnr9L0b5iUciVkhry4GLQji/7VIG+fSHHXY/pBkUYkcdndtpqQ8qSloOm0LSr19Sl/987lYyaswmg==}
+  '@junduck/trading-core@2.9.0':
+    resolution: {integrity: sha512-4kmtsxcyh9J0ko4xVJXu0Ivi099w8VIe+MUPLnGvTViF6298NOKvtyrYsJSwvda2mnjR7ip8o1yGdQ/xpixudw==}
 
   '@msgpack/msgpack@3.1.2':
     resolution: {integrity: sha512-JEW4DEtBzfe8HvUYecLU9e6+XJnKDlUAIve8FvPzF3Kzs6Xo/KuZkZJsDH0wJXl/qEZbeeE7edxDNY3kMs39hQ==}
@@ -1345,12 +1345,12 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@junduck/trading-core-serdes@0.4.1':
+  '@junduck/trading-core-serdes@0.5.0':
     dependencies:
-      '@junduck/trading-core': 2.8.0
+      '@junduck/trading-core': 2.9.0
       zod: 4.1.13
 
-  '@junduck/trading-core@2.8.0': {}
+  '@junduck/trading-core@2.9.0': {}
 
   '@msgpack/msgpack@3.1.2': {}
 

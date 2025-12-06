@@ -1,8 +1,8 @@
+import type { PartialOrder } from "@junduck/trading-core/trading";
 import {
   decodePartialOrder,
   encodePartialOrder,
   PartialOrderWireSchema,
-  type PartialOrder,
 } from "@junduck/trading-core-serdes";
 import { z } from "zod";
 

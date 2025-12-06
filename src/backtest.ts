@@ -2,6 +2,7 @@ import type {
   MarketQuote,
   Order,
   OrderState,
+  PartialOrder,
   Position,
   Fill,
 } from "@junduck/trading-core/trading";
@@ -16,7 +17,6 @@ import {
 
 import type { BacktestConfig } from "./schema/backtest.schema.js";
 import { DEBUG, logger } from "./logger.js";
-import type { PartialOrder } from "@junduck/trading-core-serdes";
 
 export class BacktestBroker {
   private config: BacktestConfig;
