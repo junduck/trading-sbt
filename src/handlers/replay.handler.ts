@@ -3,7 +3,7 @@ import { replay } from "../schema/replay.schema.js";
 import type { Handler } from "./handler.js";
 import { serverTime } from "../utils.js";
 import type { MarketSnapshot } from "@junduck/trading-core";
-import type { Event, MarketEvent } from "../schema/event.schema.js";
+import type { SbtEvent, MarketEvent } from "../schema/event.schema.js";
 
 export const replayHandler: Handler = async (context, params) => {
   const {
@@ -153,7 +153,7 @@ export const replayHandler: Handler = async (context, params) => {
           : data.filter((quote) => client.subscriptions.has(quote.symbol));
 
         if (clientData.length > 0) {
-          const events: Event[] = client.processMarketData(
+          const events: SbtEvent[] = client.processMarketData(
             clientData,
             snapshot
           );

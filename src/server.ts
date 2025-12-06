@@ -45,7 +45,7 @@ import type { HandlerContext } from "./handlers/handler-context.js";
 import type { Handler } from "./handlers/handler.js";
 import z from "zod";
 import type { TableInfo } from "./types.js";
-import type { Event } from "./schema/event.schema.js";
+import type { SbtEvent } from "./schema/event.schema.js";
 
 export class Server {
   private readonly wss: WebSocketServer;
@@ -171,7 +171,7 @@ export class Server {
     ws.send(JSON.stringify(response));
   }
 
-  sendEvent(ws: WebSocket, cid: string, event: Event): void {
+  sendEvent(ws: WebSocket, cid: string, event: SbtEvent): void {
     let serialise: any;
     switch (event.type) {
       case "market":

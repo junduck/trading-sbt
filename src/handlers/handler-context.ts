@@ -4,7 +4,7 @@ import type { Session } from "../session.js";
 import type { DataSourceConfig } from "../schema/data-source.schema.js";
 import type { DataSourcePool } from "../datasource/index.js";
 import type { TableInfo } from "../types.js";
-import type { Event } from "../schema/event.schema.js";
+import type { SbtEvent } from "../schema/event.schema.js";
 
 export interface HandlerContext {
   session: Session;
@@ -27,7 +27,7 @@ export interface HandlerContext {
     cid: string | undefined,
     result: unknown
   ): void;
-  sendEvent(ws: WebSocket, cid: string, event: Event): void;
+  sendEvent(ws: WebSocket, cid: string, event: SbtEvent): void;
   sendError(
     ws: WebSocket,
     id: number,

@@ -11,7 +11,7 @@ export const cancelOrdersHandler: Handler = (context, params) => {
     return;
   }
 
-  const validated = cancelOrders.request.validate(params as unknown);
+  const validated = cancelOrders.request.validate(params);
   if (!validated.success) {
     sendError(ws, id, cid, "INVALID_PARAM", validated.error.message);
     return;

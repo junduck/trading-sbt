@@ -16,7 +16,7 @@ export type SubmitOrderRequest = Order[];
 
 export const submitOrders = {
   request: {
-    validate: (wire: SubmitOrderRequestWire) => {
+    validate: (wire: unknown) => {
       return submitOrderRequestWireSchema.safeParse(wire);
     },
     encode: (req: SubmitOrderRequest) => {

@@ -2,7 +2,6 @@ import Database from "better-sqlite3";
 import type { MarketQuote } from "@junduck/trading-core/trading";
 import type { DataSourceConfig } from "../schema/data-source.schema.js";
 import { ReplayDataSource } from "./replay-datasource.js";
-import { toDate } from "../utils.js";
 
 /**
  * SQLite implementation of ReplayDataSource.

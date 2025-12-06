@@ -35,7 +35,7 @@ export type MarketEvent = {
 };
 
 export const marketEvent = {
-  validate: (wire: MarketEventWire) => {
+  validate: (wire: unknown) => {
     return MarketEventWireSchema.safeParse(wire);
   },
   encode: (event: MarketEvent) => {
@@ -73,7 +73,7 @@ export type OrderEvent = {
 };
 
 export const orderEvent = {
-  validate: (wire: OrderEventWire) => {
+  validate: (wire: unknown) => {
     return OrderEventWireSchema.safeParse(wire);
   },
   encode: (event: OrderEvent) => {
@@ -111,7 +111,7 @@ export type MetricsEvent = {
 };
 
 export const metricsEvent = {
-  validate: (wire: MetricsEventWire) => {
+  validate: (wire: unknown) => {
     return MetricsEventWireSchema.safeParse(wire);
   },
   encode: (event: MetricsEvent) => {
@@ -149,7 +149,7 @@ export interface ExternalEvent {
 }
 
 export const externalEvent = {
-  validate: (wire: ExternalEventWire) => {
+  validate: (wire: unknown) => {
     return ExternalEventWireSchema.safeParse(wire);
   },
   encode: (event: ExternalEvent) => {
@@ -179,15 +179,15 @@ export const EventWireSchema = z.discriminatedUnion("type", [
   ExternalEventWireSchema,
 ]);
 
-export type EventWire = z.infer<typeof EventWireSchema>;
+export type SbtEventWire = z.infer<typeof EventWireSchema>;
 
-export type Event = MarketEvent | OrderEvent | MetricsEvent | ExternalEvent;
+export type SbtEvent = MarketEvent | OrderEvent | MetricsEvent | ExternalEvent;
 
 export const event = {
-  validate: (wire: EventWire) => {
+  validate: (wire: unknown) => {
     return EventWireSchema.safeParse(wire);
   },
-  encode: (evt: Event): EventWire => {
+  encode: (evt: SbtEvent): SbtEventWire => {
     switch (evt.type) {
       case "market":
         return marketEvent.encode(evt);
@@ -199,7 +199,7 @@ export const event = {
         return externalEvent.encode(evt);
     }
   },
-  decode: (wire: EventWire): Event => {
+  decode: (wire: SbtEventWire): SbtEvent => {
     switch (wire.type) {
       case "market":
         return marketEvent.decode(wire);

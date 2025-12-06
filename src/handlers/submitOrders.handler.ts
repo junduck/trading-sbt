@@ -11,7 +11,7 @@ export const submitOrdersHandler: Handler = (context, params) => {
     return;
   }
 
-  const validated = submitOrders.request.validate(params as any);
+  const validated = submitOrders.request.validate(params);
   if (!validated.success) {
     sendError(ws, id, cid, "INVALID_PARAM", validated.error.message);
     return;

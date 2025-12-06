@@ -1,10 +1,7 @@
 import type { Handler } from "./handler.js";
 import { serverTime } from "../utils.js";
 import type { OrderEvent } from "../schema/event.schema.js";
-import {
-  amendOrders,
-  type amendOrdersRequestWire,
-} from "../schema/amendOrders.schema.js";
+import { amendOrders } from "../schema/amendOrders.schema.js";
 
 export const amendOrdersHandler: Handler = (context, params) => {
   const { session, ws, id, cid, sendResponse, sendError, sendEvent } = context;
@@ -14,9 +11,7 @@ export const amendOrdersHandler: Handler = (context, params) => {
     return;
   }
 
-  const validated = amendOrders.request.validate(
-    params as amendOrdersRequestWire
-  );
+  const validated = amendOrders.request.validate(params);
   if (!validated.success) {
     sendError(ws, id, cid, "INVALID_PARAM", validated.error.message);
     return;

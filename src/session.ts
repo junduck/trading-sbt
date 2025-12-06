@@ -3,7 +3,7 @@ import { BacktestBroker } from "./backtest.js";
 import type { BacktestConfig } from "./schema/backtest.schema.js";
 import type { MarketQuote, MarketSnapshot } from "@junduck/trading-core";
 import { serverTime, daysSinceEpoch } from "./utils.js";
-import type { Event } from "./schema/event.schema.js";
+import type { SbtEvent } from "./schema/event.schema.js";
 
 /**
  * Per-client session state.
@@ -68,8 +68,11 @@ export class ClientState {
     this.eodReport = eod;
   }
 
-  processOrderUpdate(data: MarketQuote[], snapshot: MarketSnapshot): Event[] {
-    const events: Event[] = [];
+  processOrderUpdate(
+    data: MarketQuote[],
+    snapshot: MarketSnapshot
+  ): SbtEvent[] {
+    const events: SbtEvent[] = [];
 
     const { updated, filled } = this.broker.processPendingOrders(data);
 
@@ -104,8 +107,11 @@ export class ClientState {
     return events;
   }
 
-  processMarketData(_data: MarketQuote[], snapshot: MarketSnapshot): Event[] {
-    const events: Event[] = [];
+  processMarketData(
+    _data: MarketQuote[],
+    snapshot: MarketSnapshot
+  ): SbtEvent[] {
+    const events: SbtEvent[] = [];
 
     const position = this.broker.getPosition();
     const day = daysSinceEpoch(snapshot.timestamp);

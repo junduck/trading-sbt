@@ -20,7 +20,7 @@ export type amendOrdersRequest = PartialOrder[];
 
 export const amendOrders = {
   request: {
-    validate: (wire: amendOrdersRequestWire) => {
+    validate: (wire: unknown) => {
       return amendOrdersRequestWireSchema.safeParse(wire);
     },
     encode: (req: amendOrdersRequest) => {
