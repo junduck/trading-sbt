@@ -1,7 +1,7 @@
 {
   "name": "trading-sbt",
-  "version": "0.0.1",
-  "description": "Simple Backtest Protocol - SQLite Demo Impl",
+  "version": "0.0.2",
+  "description": "Simple Backtest Protocol implementation",
   "type": "module",
   "main": "index.js",
   "scripts": {
@@ -15,7 +15,12 @@
     "docker:clean": "docker-compose down -v",
     "docker:seed": "./fixtures/seed.sh"
   },
-  "keywords": [],
+  "keywords": [
+    "trading",
+    "backtest",
+    "protocol",
+    "simple"
+  ],
   "author": "Jun",
   "license": "MIT",
   "packageManager": "pnpm@10.23.0",
