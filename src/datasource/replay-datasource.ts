@@ -3,7 +3,7 @@ import type {
   DataSourceConfig,
   DataRep,
 } from "../schema/data-source.schema.js";
-import { toEpoch } from "../utils.js";
+import { toDate, toEpoch } from "../utils.js";
 
 /**
  * Abstract base class for replay data sources.
@@ -69,14 +69,7 @@ export abstract class ReplayDataSource {
    * Convert epoch number to Date using DataRep configuration.
    */
   protected epochToDate(epoch: number): Date {
-    switch (this.rep.epochUnit) {
-      case "s":
-        return new Date(epoch * 1000);
-      case "ms":
-        return new Date(epoch);
-      case "us":
-        return new Date(epoch / 1000);
-    }
+    return toDate(epoch, this.rep);
   }
 
   /**

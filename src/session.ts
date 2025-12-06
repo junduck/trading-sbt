@@ -2,8 +2,8 @@ import { BacktestMetrics } from "./backtest-metrics.js";
 import { BacktestBroker } from "./backtest.js";
 import type { BacktestConfig } from "./schema/backtest.schema.js";
 import type { MarketQuote, MarketSnapshot } from "@junduck/trading-core";
-import type { WSEvent } from "./protocol.js";
 import { serverTime, daysSinceEpoch } from "./utils.js";
+import type { Event } from "./schema/event.schema.js";
 
 /**
  * Per-client session state.
@@ -20,6 +20,8 @@ export class ClientState {
   private eodMetrics: BacktestMetrics;
 
   private reportPeriod: number = 0;
+  private tradeReport: boolean = false;
+  private eodReport: boolean = false;
   private eventCounter: number = 0;
   private currentDay: number = -1;
 
@@ -34,7 +36,7 @@ export class ClientState {
     const riskFree = config.riskFree ?? 0;
 
     this.periodicMetrics = new BacktestMetrics(initialCash, riskFree);
-    this.tradeMetrics = new BacktestMetrics(initialCash, riskFree);
+    this.tradeMetrics = new BacktestMetrics(initialCash, 0);
     this.eodMetrics = new BacktestMetrics(initialCash, riskFree);
   }
 
@@ -60,32 +62,29 @@ export class ClientState {
     this.broker.setTime(time);
   }
 
-  setReportPeriod(period: number) {
-    this.reportPeriod = period;
+  setReport(periodic: number, trade: boolean, eod: boolean) {
+    this.reportPeriod = periodic;
+    this.tradeReport = trade;
+    this.eodReport = eod;
   }
 
-  processOrderUpdate(data: MarketQuote[], snapshot: MarketSnapshot): WSEvent[] {
-    const events: WSEvent[] = [];
+  processOrderUpdate(data: MarketQuote[], snapshot: MarketSnapshot): Event[] {
+    const events: Event[] = [];
 
     const { updated, filled } = this.broker.processPendingOrders(data);
 
     if (updated.length > 0) {
       events.push({
-        type: "event",
-        cid: this.cid,
+        type: "order",
         timestamp: serverTime(),
-        data: {
-          type: "order",
-          timestamp: serverTime(),
-          updated,
-          fill: filled,
-        },
+        updated,
+        fill: filled,
       });
 
       const position = this.broker.getPosition();
 
       // Update trade-biased metrics on fill events
-      if (filled.length > 0) {
+      if (this.tradeReport && filled.length > 0) {
         this.tradeMetrics.update(position, snapshot);
 
         const tradeReport = this.tradeMetrics.report(
@@ -95,14 +94,9 @@ export class ClientState {
           this.currentReplayTime
         );
         events.push({
-          type: "event",
-          cid: this.cid,
+          type: "metrics",
           timestamp: serverTime(),
-          data: {
-            type: "metrics",
-            timestamp: serverTime(),
-            report: tradeReport,
-          },
+          report: tradeReport,
         });
       }
     }
@@ -110,25 +104,14 @@ export class ClientState {
     return events;
   }
 
-  processMarketData(data: MarketQuote[], snapshot: MarketSnapshot): WSEvent[] {
-    const events: WSEvent[] = [];
-
-    events.push({
-      type: "event",
-      cid: this.cid,
-      timestamp: serverTime(),
-      data: {
-        type: "market",
-        timestamp: serverTime(),
-        marketData: data,
-      },
-    });
+  processMarketData(_data: MarketQuote[], snapshot: MarketSnapshot): Event[] {
+    const events: Event[] = [];
 
     const position = this.broker.getPosition();
     const day = daysSinceEpoch(snapshot.timestamp);
 
     // Check for day change (EOD detection)
-    if (this.currentDay !== -1 && day > this.currentDay) {
+    if (this.eodReport && this.currentDay !== -1 && day > this.currentDay) {
       // Emit EOD report for previous day
       const eodReport = this.eodMetrics.report(
         "ENDOFDAY",
@@ -137,16 +120,10 @@ export class ClientState {
         this.currentReplayTime
       );
       events.push({
-        type: "event",
-        cid: this.cid,
+        type: "metrics",
         timestamp: serverTime(),
-        data: {
-          type: "metrics",
-          timestamp: serverTime(),
-          report: eodReport,
-        },
+        report: eodReport,
       });
-
       // Reset EOD metrics for new day
       this.eodMetrics.reset();
     }
@@ -166,14 +143,9 @@ export class ClientState {
         this.currentReplayTime
       );
       events.push({
-        type: "event",
-        cid: this.cid,
+        type: "metrics",
         timestamp: serverTime(),
-        data: {
-          type: "metrics",
-          timestamp: serverTime(),
-          report: periodicReport,
-        },
+        report: periodicReport,
       });
     }
 

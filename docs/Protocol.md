@@ -6,7 +6,7 @@ JSON-RPC like WebSocket protocol for concurrent backtest replay and simulation.
 
 - **Unified Interface**: Single WebSocket for both data and trade
 - **Stateless Operations**: Client ID (`cid`) identifies session, no authentication required
-- **Request-Response Pattern**: Action-based requests with `action_id` for correlation
+- **Request-Response Pattern**: Mehod-based requests with `id` for correlation
 - **Event Streaming**: Server pushes market and order events asynchronously
 - **Type Safety**: JSON messages map directly to TypeScript types
 - **Per connection multiplexing**: A single connection may multiplex multiple clients, enabling concurrent backtesting
@@ -16,21 +16,24 @@ JSON-RPC like WebSocket protocol for concurrent backtest replay and simulation.
 ### Request (Client → Server)
 
 ```typescript
-interface Request {
-  action: string;        // Action name (e.g., "submit", "subscribe")
-  action_id: number;     // Unique ID for correlating responses
-  params: unknown;       // Action-specific parameters
+type Request = {
+  method: string;   // Method name (e.g., "submit", "subscribe")
+  id: number;       // Unique ID for correlating responses
+  cid: string;      // Client ID
+  params: unknown;  // Action-specific parameters
 }
 ```
 
 ### Response (Server → Client)
 
 ```typescript
-interface Response {
-  type: "response";
-  action_id: number;     // Matches request action_id (globally unique per connection)
-  result?: unknown;      // Success result
-  error?: {              // Error details (mutually exclusive with result)
+type Response = {
+  type: "result" | "error" | "event";
+  id?: number;     // Matches request id (unique per client lifecycle)
+  cid?: string     // Client ID
+  result?: unknown;      // Success result when type is "result"
+  event?: unknown;       // Event data when type is "event"
+  error?: {              // Error details when type is "error"
     code: string;        // Error code (e.g., "INVALID_SYMBOL")
     message: string;     // Human-readable error message
   };
@@ -40,11 +43,30 @@ interface Response {
 ### Event stream (Server → Client)
 
 ```typescript
-interface Event {
-  type: "market" | "order";
-  cid: string;           // Client ID (routes event to specific client)
-  data: unknown;         // Event-specific data
-  timestamp: number;     // Unix epoch timestamp
+type MarketEvent = {
+  type: "market";
+  timestamp: Date;           // Server time when event sent
+  marketData: MarketQuote[]; // Timestamp in market qutoes are replay time
+}
+
+type OrderEvent = {
+  type: "order";
+  timestamp: Date; 
+  updated: OrderState[];
+  fill: Fill[]; 
+}
+
+type MetricsEvent = {
+  type: "metrics";
+  timestamp: Date;
+  report: MetricsReport;
+}
+
+type ExternalEvent = {
+  type: "external";
+  timestamp: Date;
+  source: string;
+  data: unknown;
 }
 ```
 
@@ -60,8 +82,8 @@ Initialize connection with server-defined configuration. Sent automatically upon
 
 ```json
 {
-  "action": "init",
-  "action_id": 0,
+  "method": "init",
+  "id": 0, // multiplexer/orchestrator level request, no cid
   "params": {
     // Optional server-defined configuration
     // Can include: protocol version, features, 
@@ -74,11 +96,23 @@ Initialize connection with server-defined configuration. Sent automatically upon
 
 ```json
 {
-  "type": "response",
-  "action_id": 0,
+  "type": "result",
+  "id": 0,
   "result": {
     // Server-defined initialization response
     // Can include: server version, capabilities, supported features, etc.
+    "replayTables": [
+      {
+        "name": "ohlcv5min",
+        "from": 1733390740000, //unix epoch ms
+        "to":   1753890740000  //unix epoch ms
+      },
+      {
+        "name": "tick",
+        "from": 1733390740000,
+        "to":   1753890740000
+      }
+    ]
   }
 }
 ```
@@ -91,11 +125,35 @@ Declare attendance / gracefully ask server to release resources
 
 ```json
 {
-  "action": "login" | "logout",
-  "action_id": 1,
+  "method": "login",
+  "id": 1,
+  "cid": "client-uuid-123",
   "params": {
-    "cid": "client-uuid-123",
-    "config": BacktestConfig
+    "config": {
+      "initialCash": 100000,
+      "riskFree": 0.01,
+      "commission": {
+        "rate": 0.001,
+        "max": 100
+      },
+      "slippage":{
+        "price": {
+          "fixed": 0.01
+        },
+        "volume": {
+          "maxParticipation": 0.001
+        }
+      }
+    } // backtest configuration
+  }
+}
+
+{
+  "method": "logout",
+  "id": 10,
+  "cid": "client-uuid-123",
+  "params": {
+    // No parameters required
   }
 }
 ```
@@ -104,11 +162,22 @@ Declare attendance / gracefully ask server to release resources
 
 ```json
 {
-  "type": "response",
-  "action_id": 1,
+  "type": "result",
+  "id": 1,
+  "cid": "client-uuid-123",
   "result": {
     "connected": true,
-    "timestamp": "2024-01-15T10:30:00.000Z",
+    "timestamp": 1734390740000, //unix epoch ms
+  }
+}
+
+{
+  "type": "result",
+  "id": 10,
+  "cid": "client-uuid-123",
+  "result": {
+    "disconnected": false,
+    "timestamp": 1734390745000, //unix epoch ms
   }
 }
 ```
@@ -125,10 +194,10 @@ Subscribe to market data for specified symbols.
 
 ```json
 {
-  "action": "subscribe",
-  "action_id": 2,
+  "method": "subscribe",
+  "id": 2,
+  "cid": "client-uuid-123",
   "params": {
-    "cid": "client-uuid-123",
     "symbols": ["AAPL", "MSFT"]
   }
 }
@@ -138,10 +207,10 @@ Subscribe to market data for specified symbols.
 
 ```json
 {
-  "action": "subscribe",
-  "action_id": 2,
+  "method": "subscribe",
+  "id": 2,
+  "cid": "client-uuid-123",
   "params": {
-    "cid": "client-uuid-123",
     "symbols": ["*"]
   }
 }
@@ -151,8 +220,9 @@ Subscribe to market data for specified symbols.
 
 ```json
 {
-  "type": "response",
-  "action_id": 2,
+  "type": "result",
+  "id": 2,
+  "cid": "client-uuid-123",
   "result": {
     "subscribed": ["AAPL", "MSFT"]
   }
@@ -167,10 +237,10 @@ Unsubscribe from market data for specified symbols.
 
 ```json
 {
-  "action": "unsubscribe",
-  "action_id": 3,
+  "method": "unsubscribe",
+  "id": 3,
+  "cid": "client-uuid-123",
   "params": {
-    "cid": "client-uuid-123",
     "symbols": ["AAPL"]
   }
 }
@@ -180,8 +250,9 @@ Unsubscribe from market data for specified symbols.
 
 ```json
 {
-  "type": "response",
-  "action_id": 3,
+  "type": "result",
+  "id": 3,
+  "cid": "client-uuid-123",
   "result": {
     "unsubscribed": ["AAPL"]
   }
@@ -196,18 +267,27 @@ A client-side orchestrator should manage the orchestration of multiplexed client
 
 ```json
 {
-  "action": "replay",
-  "action_id": 5,
+  "method": "replay",
+  "id": 5, // orchestrator level request, no cid
   "params": {
-    "from": "2024-01-15T10:30:00.000Z",
-    "to": "2024-01-20T10:30:00.000Z",
-    "interval": 1000, 
-    "replay_id": "some_id_for_this_replay"
+    "table": "ohlcv5min", // replay table name
+    "from": 1733390740000, // unix epoch ms
+    "to": 1753890740000, // unix epoch ms
+    "replayId": "some_id_for_this_replay",
+    "replayInterval": 50, // ms between events
+    "periodicReport": 1000, // optional, report every N events
+    "tradeReport": true, // optional, include per-trade report
+    "endOfDayReport": true, // optional, include end of day report
+    "marketMultiplex": false // optional, see below for details
   }
 }
 ```
 
-interval: since we simulate real-time event, orchestrator can ask for some interval between event, so clients can process data without backpressure.
+replayInterval: since we simulate real-time event, orchestrator can ask for some interval between event, so clients can process data without backpressure.
+
+marketMultiplex: when true, server will batch ALL market events per replayInterval, and orchestrator is responsible to demultiplex market events to each client based on their subscription. When false, server will send market events per client subscription, which may result in duplicated data sent over the wire. Default is false.
+
+multiplexed market data will have recipient client id of `"__multiplex__"` in the event message.
 
 login request during replay will be rejected via error, the consideration is session prepares data upon login, not via replay
 
@@ -217,12 +297,12 @@ Data stream starts immediately, and upon replay finish:
 
 ```json
 {
-  "action": "response",
-  "action_id": 5,
+  "type": "result",
+  "id": 5, // orchestrator level request, no cid
   "result": {
-    "replay_finished": "some_id_for_this_replay",
-    "begin": "2025-01-20T10:30:00.000Z",
-    "end": "2025-01-20T10:30:10.000Z"
+    "replayId": "some_id_for_this_replay",
+    "begin": 1733390740000, // server time, unix epoch ms
+    "end": 1733390840000 // server time, unix epoch ms
   }
 }
 ```
@@ -239,10 +319,11 @@ Retrieve current position state.
 
 ```json
 {
-  "action": "getPosition",
-  "action_id": 9,
+  "method": "getPosition",
+  "id": 9,
+  "cid": "client-uuid-123",
   "params": {
-    "cid": "client-uuid-123"
+    // No parameters required
   }
 }
 ```
@@ -251,15 +332,56 @@ Retrieve current position state.
 
 ```json
 {
-  "type": "response",
-  "action_id": 9,
+  "type": "result",
+  "id": 9,
+  "cid": "client-uuid-123",
   "result": {
     "cash": 100000,
-    "long": {},
-    "short": {},
+    "long": {
+      "AAPL": {
+        "quantity": 100,
+        "totalCost": 150.00,
+        "realisedPnL": 500.00,
+        "lots": [{
+          "quantity": 100,
+          "price": 150.00,
+          "totalCost": 15010.00,
+        },
+        {
+          "quantity": 50,
+          "price": 155.00,
+          "totalCost": 7755.00,
+        }],
+        "modified": 1738390740000 // unix epoch ms
+      },
+      "MSFT": {
+        "quantity": 50,
+        "totalCost": 250.00,
+        "realisedPnL": 200.00,
+        "lots": [{
+          "quantity": 50,
+          "price": 250.00,
+          "totalCost": 12505.00,
+        }],
+        "modified": 1738390740000 // unix epoch ms
+      }
+    },
+    "short": {
+      "TSLA": {
+        "quantity": 30,
+        "totalProceeds": 900.00,
+        "realisedPnL": 150.00,
+        "lots": [{
+          "quantity": 30,
+          "price": 300.00,
+          "totalProceeds": 8990.00,
+        }],
+        "modified": 1738390740000 // unix epoch ms
+      }
+    },
     "totalCommission": 0,
     "realisedPnL": 0,
-    "modified": "2025-12-01T12:00:00Z"
+    "modified": 1738390740000 // unix epoch ms
   }
 }
 ```
@@ -275,10 +397,11 @@ Retrieve all open orders.
 
 ```json
 {
-  "action": "getOpenOrders",
-  "action_id": 9,
+  "method": "getOpenOrders",
+  "id": 9,
+  "cid": "client-uuid-123",
   "params": {
-    "cid": "client-uuid-123"
+    // No parameters required
   }
 }
 ```
@@ -287,8 +410,9 @@ Retrieve all open orders.
 
 ```json
 {
-  "type": "response",
-  "action_id": 9,
+  "type": "result",
+  "id": 9,
+  "cid": "client-uuid-123",
   "result": [
     {
       "id": "order-1",
@@ -318,11 +442,10 @@ Submit one or more orders for execution.
 
 ```json
 {
-  "action": "submitOrders",
-  "action_id": 9,
-  "params": {
-    "cid": "client-uuid-123",
-    "orders": [
+  "method": "submitOrders",
+  "id": 9,
+  "cid": "client-uuid-123",
+  "params": [
       {
         "id": "order-1",
         "symbol": "AAPL",
@@ -332,22 +455,20 @@ Submit one or more orders for execution.
         "quantity": 100
       }
     ]
-  }
 }
 ```
 
-orders -> Order[]
+params -> Order[]
 Order interface using @junduck/trading-core/trading
 
 **Response:**
 
 ```json
 {
-  "type": "response",
-  "action_id": 9,
-  "result": {
-    "submitted": 1
-  }
+  "type": "result",
+  "id": 9,
+  "cid": "client-uuid-123",
+  "result": 1
 }
 ```
 
@@ -359,33 +480,30 @@ Amend/modify existing orders.
 
 ```json
 {
-  "action": "amendOrders",
-  "action_id": 9,
-  "params": {
-    "cid": "client-uuid-123",
-    "updates": [
+  "method": "amendOrders",
+  "id": 9,
+  "cid": "client-uuid-123",
+  "params": [
       {
         "id": "order-1",
         "price": 155.00,
         "quantity": 150
       }
     ]
-  }
 }
 ```
 
-updates -> Partial<Order>[]
+params -> PartialOrder[]
 Order interface using @junduck/trading-core/trading
 
 **Response:**
 
 ```json
 {
-  "type": "response",
-  "action_id": 9,
-  "result": {
-    "amended": 1
-  }
+  "type": "result",
+  "id": 9,
+  "cid": "client-uuid-123",
+  "result": 1
 }
 ```
 
@@ -397,12 +515,10 @@ Cancel specific orders by ID.
 
 ```json
 {
-  "action": "cancelOrders",
-  "action_id": 9,
-  "params": {
-    "cid": "client-uuid-123",
-    "orderIds": ["order-1", "order-2"]
-  }
+  "method": "cancelOrders",
+  "id": 9,
+  "cid": "client-uuid-123",
+  "params": ["order-1", "order-2"]
 }
 ```
 
@@ -410,11 +526,10 @@ Cancel specific orders by ID.
 
 ```json
 {
-  "type": "response",
-  "action_id": 9,
-  "result": {
-    "cancelled": 2
-  }
+  "type": "result",
+  "id": 9,
+  "cid": "client-uuid-123",
+  "result": 2
 }
 ```
 
@@ -426,10 +541,11 @@ Cancel all open orders (emergency action).
 
 ```json
 {
-  "action": "cancelAllOrders",
-  "action_id": 9,
+  "method": "cancelAllOrders",
+  "id": 9,
+  "cid": "client-uuid-123",
   "params": {
-    "cid": "client-uuid-123"
+    // No parameters required
   }
 }
 ```
@@ -438,87 +554,12 @@ Cancel all open orders (emergency action).
 
 ```json
 {
-  "type": "response",
-  "action_id": 9,
-  "result": {
-    "cancelled": 5
-  }
-}
-```
-
-## Events
-
-Events are pushed asynchronously from server to client. No `action_id` correlation.
-
-**Important**: Events MUST include `cid` to route to the correct client session.
-
-export interface BaseEvent {
-  type: "market" | "external" | "order";
-  timestamp: Date;
-}
-
-### Market Event
-
-Streamed when market data is available for subscribed symbols.
-
-```json
-{
-  "type": "event",
+  "type": "result",
+  "id": 9,
   "cid": "client-uuid-123",
-  "timestamp": "2024-01-15T10:30:00.000Z",
-  "data": MarketEvent
+  "result": 3
 }
 ```
-
-data -> MarketEvent
-export interface MarketEvent extends BaseEvent {
-  type: "market";
-  marketData: MarketQuote[];
-}
-MarketQuote interface using @junduck/trading-core/trading
-
-### Order Event
-
-Streamed when order state changes or fills occur.
-
-```json
-{
-  "type": "event",
-  "cid": "client-uuid-123",
-  "timestamp": "2024-01-15T10:30:00.000Z",
-  "data": OrderEvent
-}
-```
-
-data -> OrderEvent
-export interface OrderEvent extends BaseEvent {
-  type: "order";
-  updated: OrderState[];
-  fill: Fill[];
-}
-OrderState and Fill interface using @junduck/trading-core/trading
-
-## External Event
-
-Streamed when external event data is available for subscribed symbols (News, external signals etc), streaming external event may not be supported
-
-```json
-{
-  "type": "event",
-  "cid": "client-uuid-123",
-  "timestamp": "2024-01-15T10:30:00.000Z",
-  "data": ExternalEvent
-}
-```
-
-data -> ExternalEvent
-export interface ExternalEvent extends BaseEvent {
-  type: "external";
-  /** Source identifier (e.g., "news", "ml-predictor", "sentiment") */
-  source: string;
-  /** Provider-specific data payload */
-  data: unknown;
-}
 
 ## Error Handling
 
@@ -526,8 +567,9 @@ When a request fails, the response contains an `error` field instead of `result`
 
 ```json
 {
-  "type": "INVALID_SYMBOL",
-  "action_id": 9,
+  "type": "error",
+  "id": 9,
+  "cid": "client-uuid-123",
   "error": {
     "code": "SYMBOL_NOT_FOUND",
     "message": "Subscribed symbol does not exist in database"

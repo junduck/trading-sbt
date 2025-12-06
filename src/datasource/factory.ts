@@ -90,13 +90,13 @@ export async function closePool(pool: DataSourcePool): Promise<void> {
  * Factory function to create the appropriate ReplayDataSource instance.
  * Pass the shared pool from initializePool for efficient resource usage.
  */
-export function createDataSource(
+export async function createDataSource(
   replayId: string,
   config: DataSourceConfig,
   pool: DataSourcePool,
   table: string,
   symbols: string[]
-): ReplayDataSource {
+): Promise<ReplayDataSource> {
   switch (config.type) {
     case "sqlite":
       return new SQLiteReplayDataSource(replayId, config, table, symbols);

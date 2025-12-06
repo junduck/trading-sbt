@@ -1,10 +1,15 @@
-import type { Handler } from "./types.js";
+import { init } from "../schema/init.schema.js";
+import type { Handler } from "./handler.js";
 
 export const initHandler: Handler = (context, _params) => {
-  const { ws, actionId, sendResponse, replayTables } = context;
+  const { ws, id, sendResponse, replayTables } = context;
 
-  sendResponse(ws, actionId, {
-    version: "1.0.0",
-    replay_tables: replayTables,
-  });
+  sendResponse(
+    ws,
+    id,
+    undefined,
+    init.response.encode({
+      replayTables: replayTables,
+    })
+  );
 };

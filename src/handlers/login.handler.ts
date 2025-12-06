@@ -1,47 +1,43 @@
-import { LoginParamsSchema } from "../schema/index.js";
-import type { LoginParams } from "../schema/index.js";
-import type { LoginResult } from "../protocol.js";
-import type { Handler } from "./types.js";
+import { type Handler } from "./handler.js";
 import { serverTime } from "../utils.js";
+import { login, type LoginResponse } from "../schema/login.schema.js";
 
 export const loginHandler: Handler = (context, params) => {
-  const {
-    session,
-    ws,
-    actionId,
-    activeReplays,
-    validateParams,
-    sendResponse,
-    sendError,
-  } = context;
+  const { session, ws, id, cid, sendResponse, sendError, activeReplays } =
+    context;
 
-  const validated = validateParams<LoginParams>(
-    ws,
-    actionId,
-    params,
-    LoginParamsSchema
-  );
-  if (!validated) return;
+  if (!cid) {
+    sendError(ws, id, cid, "INVALID_CLIENT", "Client id is required");
+    return;
+  }
 
-  const { cid, config } = validated;
+  const validated = login.request.validate(params);
+  if (!validated.success) {
+    sendError(ws, id, cid, "INVALID_PARAM", validated.error.message);
+    return;
+  }
+
+  const { config } = validated.data;
 
   // Reject login during active replay
   if (activeReplays.has(ws)) {
     sendError(
       ws,
-      actionId,
+      id,
+      cid,
       "REPLAY_ACTIVE",
       "Cannot login during active replay"
     );
     return;
   }
 
-  session.login(cid, config, serverTime());
+  const now = serverTime();
+  session.login(cid, config, now);
 
-  const result: LoginResult = {
+  const result: LoginResponse = {
     connected: true,
-    timestamp: serverTime(),
+    timestamp: now,
   };
 
-  sendResponse(ws, actionId, result);
+  sendResponse(ws, id, cid, login.response.encode(result));
 };

@@ -10,4 +10,3 @@ export { amendOrdersHandler } from "./amendOrders.handler.js";
 export { cancelOrdersHandler } from "./cancelOrders.handler.js";
 export { cancelAllOrdersHandler } from "./cancelAllOrders.handler.js";
 export { replayHandler } from "./replay.handler.js";
-export type { Handler, HandlerContext } from "./types.js";

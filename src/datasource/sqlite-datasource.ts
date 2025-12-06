@@ -67,12 +67,12 @@ export class SQLiteReplayDataSource extends ReplayDataSource {
     const rows = this.batchStmt.all(...params) as Array<Record<string, any>>;
 
     return rows.map((row) => {
-      const timestamp = toDate(row[this.rep.epochColumn], this.rep);
+      const timestamp = this.epochToDate(row[this.rep.epochColumn]);
       return {
         ...row,
         symbol: row[this.rep.symbolColumn],
-        timestamp,
         price: row[this.rep.priceColumn],
+        timestamp,
       };
     }) as MarketQuote[];
   }

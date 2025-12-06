@@ -1,21 +1,19 @@
-import { LogoutParamsSchema } from "../schema/index.js";
-import type { LogoutParams } from "../schema/index.js";
-import type { Handler } from "./types.js";
+import type { Handler } from "./handler.js";
+import { serverTime } from "../utils.js";
 
-export const logoutHandler: Handler = (context, params) => {
-  const { session, ws, actionId, validateParams, sendResponse } = context;
+export const logoutHandler: Handler = (context, _params) => {
+  const { session, ws, id, cid, sendResponse, sendError } = context;
 
-  const validated = validateParams<LogoutParams>(
-    ws,
-    actionId,
-    params,
-    LogoutParamsSchema
-  );
-  if (!validated) return;
+  if (!cid) {
+    sendError(ws, id, cid, "INVALID_CLIENT", "Client id is required");
+    return;
+  }
 
-  const { cid } = validated;
+  const existed = session.logout(cid);
+  if (!existed) {
+    sendError(ws, id, cid, "INVALID_CLIENT", "Client not logged in");
+    return;
+  }
 
-  session.logout(cid);
-
-  sendResponse(ws, actionId, { connected: false });
+  sendResponse(ws, id, cid, { connected: false, timestamp: serverTime() });
 };

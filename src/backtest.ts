@@ -16,8 +16,7 @@ import {
 
 import type { BacktestConfig } from "./schema/backtest.schema.js";
 import { DEBUG, logger } from "./logger.js";
-
-export type AmendAction = Partial<Order> & Pick<Order, "id">;
+import type { PartialOrder } from "@junduck/trading-core-serdes";
 
 export class BacktestBroker {
   private config: BacktestConfig;
@@ -105,7 +104,7 @@ export class BacktestBroker {
     return submitted;
   }
 
-  amendOrder(updates: AmendAction[]): OrderState[] {
+  amendOrder(updates: PartialOrder[]): OrderState[] {
     const updated: OrderState[] = [];
     for (const update of updates) {
       const state = this.openOrders.get(update.id);

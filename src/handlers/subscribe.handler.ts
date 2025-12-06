@@ -1,30 +1,27 @@
-import { SubscribeParamsSchema } from "../schema/index.js";
-import type { SubscribeParams } from "../schema/index.js";
-import type { SubscribeResult } from "../protocol.js";
-import type { Handler } from "./types.js";
+import type { Handler } from "./handler.js";
+import { subscribe } from "../schema/subscribe.schema.js";
 
 export const subscribeHandler: Handler = (context, params) => {
-  const { session, ws, actionId, validateParams, sendResponse, sendError } =
-    context;
+  const { session, ws, id, cid, sendResponse, sendError } = context;
 
-  const validated = validateParams<SubscribeParams>(
-    ws,
-    actionId,
-    params,
-    SubscribeParamsSchema
-  );
-  if (!validated) return;
-
-  const { cid, symbols } = validated;
-
-  const client = session.getClient(cid);
-  if (!client) {
-    sendError(ws, actionId, "INVALID_CLIENT", "Client not logged in");
+  if (!cid) {
+    sendError(ws, id, cid, "INVALID_CLIENT", "Client id is required");
     return;
   }
 
-  const subscribed = client.addSubscriptions(symbols);
+  const validated = subscribe.request.validate(params);
+  if (!validated.success) {
+    sendError(ws, id, cid, "INVALID_PARAM", validated.error.message);
+    return;
+  }
 
-  const result: SubscribeResult = { subscribed };
-  sendResponse(ws, actionId, result);
+  const client = session.getClient(cid);
+  if (!client) {
+    sendError(ws, id, cid, "INVALID_CLIENT", "Client not logged in");
+    return;
+  }
+
+  const subscribed = client.addSubscriptions(validated.data.symbols);
+
+  sendResponse(ws, id, cid, subscribe.response.encode({ subscribed }));
 };

@@ -1,6 +1,5 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { Session } from "./session.js";
-import type { Request, Response, WSEvent } from "./protocol.js";
 import {
   DataSourceSchema,
   type DataSourceConfig,
@@ -24,10 +23,29 @@ import {
   cancelOrdersHandler,
   cancelAllOrdersHandler,
   replayHandler,
-  type Handler,
-  type HandlerContext,
 } from "./handlers/index.js";
-import { getAvailTables } from "./utils.js";
+import { getTableInfo } from "./utils.js";
+
+import {
+  RequestWireSchema,
+  type RequestWire,
+  type ResponseWire,
+} from "./schema/protocol.schema.js";
+import {
+  externalEvent,
+  marketEvent,
+  metricsEvent,
+  orderEvent,
+  type ExternalEvent,
+  type MarketEvent,
+  type MetricsEvent,
+  type OrderEvent,
+} from "./schema/event.schema.js";
+import type { HandlerContext } from "./handlers/handler-context.js";
+import type { Handler } from "./handlers/handler.js";
+import z from "zod";
+import type { TableInfo } from "./types.js";
+import type { Event } from "./schema/event.schema.js";
 
 export class Server {
   private readonly wss: WebSocketServer;
@@ -35,13 +53,13 @@ export class Server {
   private readonly activeReplays = new WeakMap<WebSocket, string>();
   private readonly dataSourceConfig: DataSourceConfig;
   private readonly dataSourcePool: DataSourcePool;
-  private readonly replayTables: string[];
+  private readonly replayTables: TableInfo[];
 
   constructor(
     port: number,
     dataSourceConfig: DataSourceConfig,
     dataSourcePool: DataSourcePool,
-    replayTables: string[]
+    replayTables: TableInfo[]
   ) {
     this.dataSourceConfig = dataSourceConfig;
     this.dataSourcePool = dataSourcePool;
@@ -83,19 +101,28 @@ export class Server {
     session: Session,
     data: string
   ): Promise<void> {
-    let action_id: number | undefined;
     try {
-      const request: Request = JSON.parse(data);
-      action_id = request.action_id;
-      const { action, params } = request;
+      const req = this.validateWire(
+        ws,
+        undefined,
+        undefined,
+        JSON.parse(data),
+        RequestWireSchema
+      ) as RequestWire;
+      if (req === undefined) {
+        return;
+      }
 
-      const handler = this.handlers[action as keyof typeof this.handlers];
+      const { method, id, cid, params } = req;
+
+      const handler = this.handlers[method as keyof typeof this.handlers];
       if (!handler) {
         this.sendError(
           ws,
-          action_id,
-          "INVALID_ACTION",
-          `Unknown action: ${action}`
+          id,
+          cid,
+          "INVALID_METHOD",
+          `Unknown method: ${method}`
         );
         return;
       }
@@ -103,7 +130,8 @@ export class Server {
       const context: HandlerContext = {
         session,
         ws,
-        actionId: action_id,
+        id,
+        cid,
         dataSourceConfig: this.dataSourceConfig,
         dataSourcePool: this.dataSourcePool,
         replayTables: this.replayTables,
@@ -112,72 +140,93 @@ export class Server {
         sendResponse: this.sendResponse.bind(this),
         sendError: this.sendError.bind(this),
         sendEvent: this.sendEvent.bind(this),
-        validateParams: this.validateParams.bind(this),
       };
 
       await handler(context, params);
     } catch (error) {
+      // Handler should have their own try block, this catch should not happen at all
       logger.error({ err: error }, "Error handling message");
-      // Send error response if we have action_id (parse succeeded)
-      if (action_id !== undefined) {
-        this.sendError(
-          ws,
-          action_id,
-          "INTERNAL_ERROR",
-          error instanceof Error ? error.message : "Internal server error"
-        );
-      }
+      this.sendError(
+        ws,
+        undefined,
+        undefined,
+        "INTERNAL_ERROR",
+        error instanceof Error ? error.message : "Internal server error"
+      );
     }
   }
 
-  private sendResponse(ws: WebSocket, actionId: number, result: unknown): void {
-    const response: Response = {
-      type: "response",
-      action_id: actionId,
+  private sendResponse(
+    ws: WebSocket,
+    id: number,
+    cid: string | undefined,
+    result: unknown
+  ): void {
+    const response: ResponseWire = {
+      type: "result",
+      id,
+      cid,
       result,
+    };
+    ws.send(JSON.stringify(response));
+  }
+
+  sendEvent(ws: WebSocket, cid: string, event: Event): void {
+    let serialise: any;
+    switch (event.type) {
+      case "market":
+        serialise = marketEvent.encode(event as MarketEvent);
+        break;
+      case "order":
+        serialise = orderEvent.encode(event as OrderEvent);
+        break;
+      case "metrics":
+        serialise = metricsEvent.encode(event as MetricsEvent);
+        break;
+      case "external":
+        serialise = externalEvent.encode(event as ExternalEvent);
+    }
+    const response: ResponseWire = {
+      type: "event",
+      cid: cid,
+      event: serialise,
     };
     ws.send(JSON.stringify(response));
   }
 
   private sendError(
     ws: WebSocket,
-    actionId: number,
+    id: number | undefined,
+    cid: string | undefined,
     code: string,
     message: string
   ): void {
-    logger.error({ actionId, code, message }, "Error response sent to client");
-    const response: Response = {
-      type: "response",
-      action_id: actionId,
+    logger.error({ cid, id, code, message }, "Error response sent to client");
+    const response: ResponseWire = {
+      type: "error",
       error: { code, message },
     };
+    if (id !== undefined) response.id = id;
+    if (cid !== undefined) response.cid = cid;
     ws.send(JSON.stringify(response));
   }
 
-  sendEvent(ws: WebSocket, event: WSEvent): void {
-    ws.send(JSON.stringify(event));
-  }
-
-  /**
-   * Validate params against a Zod schema and send error response if invalid.
-   * Returns validated params if successful, undefined if validation failed.
-   */
-  private validateParams<T>(
+  private validateWire(
     ws: WebSocket,
-    actionId: number,
+    id: number | undefined,
+    cid: string | undefined,
     params: unknown,
     schema: any
-  ): T | undefined {
+  ): any | undefined {
     const result = schema.safeParse(params);
     if (!result.success) {
-      const errorMessage =
-        result.error.errors
-          ?.map((e: any) => `${e.path.join(".")}: ${e.message}`)
-          .join(", ") ||
-        result.error.message ||
-        "Invalid parameters";
-
-      this.sendError(ws, actionId, "INVALID_PARAMS", errorMessage);
+      this.sendError(
+        ws,
+        id,
+        cid,
+        "INVALID_PARAMS",
+        z.prettifyError(result.error)
+      );
       return undefined;
     }
     return result.data;
@@ -243,7 +292,7 @@ export async function createServer(
 
   // Initialize pool and get available tables
   const pool = initializePool(validated.data);
-  const availTables = await getAvailTables(validated.data, pool);
+  const tables = await getTableInfo(validated.data, pool);
 
   // Only filter tables for datasources that support replay config
   if (
@@ -251,38 +300,38 @@ export async function createServer(
     validated.data.type === "postgres" ||
     validated.data.type === "mysql"
   ) {
-    if (availTables.length === 0) {
+    if (tables.length === 0) {
       throw new Error("No tables found in data source");
     }
 
     // Filter tables based on replay config
-    let replayTables: string[];
+    let replayTables: TableInfo[];
     const configuredTables = validated.data.replay;
 
     if (configuredTables && configuredTables.length > 0) {
-      replayTables = availTables.filter((table) =>
-        configuredTables.includes(table)
+      replayTables = tables.filter((table) =>
+        configuredTables.includes(table.name)
       );
 
       if (replayTables.length === 0) {
         throw new Error(
-          `None of the configured replay tables exist. Available: ${availTables.join(
+          `None of the configured replay tables exist. Available: ${tables.join(
             ", "
           )}`
         );
       }
 
       const missingTables = configuredTables.filter(
-        (table) => !availTables.includes(table)
+        (table) => !tables.some((t) => t.name === table)
       );
       if (missingTables.length > 0) {
         logger.warn(
-          { missingTables, availTables },
+          { missingTables, tables },
           "Some configured replay tables not found in data source"
         );
       }
     } else {
-      replayTables = availTables;
+      replayTables = tables;
     }
 
     logger.info({ replayTables }, "Available replay tables");

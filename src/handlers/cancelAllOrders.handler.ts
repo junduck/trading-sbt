@@ -1,52 +1,33 @@
-import { CancelAllOrdersParamsSchema } from "../schema/index.js";
-import type { CancelAllOrdersParams } from "../schema/index.js";
-import type { OrderWSEvent } from "../protocol.js";
-import type { Handler } from "./types.js";
+import type { Handler } from "./handler.js";
+import { cancelAllOrders } from "../schema/cancelOrders.schema.js";
+import type { OrderEvent } from "../schema/event.schema.js";
 import { serverTime } from "../utils.js";
 
-export const cancelAllOrdersHandler: Handler = (context, params) => {
-  const {
-    session,
-    ws,
-    actionId,
-    validateParams,
-    sendResponse,
-    sendError,
-    sendEvent,
-  } = context;
+export const cancelAllOrdersHandler: Handler = (context, _params) => {
+  const { session, ws, id, cid, sendResponse, sendError, sendEvent } = context;
 
-  const validated = validateParams<CancelAllOrdersParams>(
-    ws,
-    actionId,
-    params,
-    CancelAllOrdersParamsSchema
-  );
-  if (!validated) return;
-
-  const { cid } = validated;
+  if (!cid) {
+    sendError(ws, id, cid, "INVALID_CLIENT", "Client id is required");
+    return;
+  }
 
   const client = session.getClient(cid);
   if (!client) {
-    sendError(ws, actionId, "INVALID_CLIENT", "Client not logged in");
+    sendError(ws, id, cid, "INVALID_CLIENT", "Client not logged in");
     return;
   }
 
   const cancelled = client.broker.cancelAllOrders();
 
   if (cancelled.length > 0) {
-    const event: OrderWSEvent = {
-      type: "event",
-      cid,
+    const event: OrderEvent = {
+      type: "order",
       timestamp: serverTime(),
-      data: {
-        type: "order",
-        timestamp: serverTime(),
-        updated: cancelled,
-        fill: [],
-      },
+      updated: cancelled,
+      fill: [],
     };
-    sendEvent(ws, event);
+    sendEvent(ws, cid, event);
   }
 
-  sendResponse(ws, actionId, { cancelled: cancelled.length });
+  sendResponse(ws, id, cid, cancelAllOrders.response.encode(cancelled.length));
 };

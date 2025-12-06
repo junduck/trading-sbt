@@ -1,52 +1,41 @@
-import { CancelOrdersParamsSchema } from "../schema/index.js";
-import type { CancelOrdersParams } from "../schema/index.js";
-import type { OrderWSEvent } from "../protocol.js";
-import type { Handler } from "./types.js";
+import type { Handler } from "./handler.js";
+import { cancelOrders } from "../schema/cancelOrders.schema.js";
+import type { OrderEvent } from "../schema/event.schema.js";
 import { serverTime } from "../utils.js";
 
 export const cancelOrdersHandler: Handler = (context, params) => {
-  const {
-    session,
-    ws,
-    actionId,
-    validateParams,
-    sendResponse,
-    sendError,
-    sendEvent,
-  } = context;
+  const { session, ws, id, cid, sendResponse, sendError, sendEvent } = context;
 
-  const validated = validateParams<CancelOrdersParams>(
-    ws,
-    actionId,
-    params,
-    CancelOrdersParamsSchema
-  );
-  if (!validated) return;
-
-  const { cid, orderIds } = validated;
-
-  const client = session.getClient(cid);
-  if (!client) {
-    sendError(ws, actionId, "INVALID_CLIENT", "Client not logged in");
+  if (!cid) {
+    sendError(ws, id, cid, "INVALID_CLIENT", "Client id is required");
     return;
   }
 
-  const cancelled = client.broker.cancelOrder(orderIds);
-
-  if (cancelled.length > 0) {
-    const event: OrderWSEvent = {
-      type: "event",
-      cid,
-      timestamp: serverTime(),
-      data: {
-        type: "order",
-        timestamp: serverTime(),
-        updated: cancelled,
-        fill: [],
-      },
-    };
-    sendEvent(ws, event);
+  const validated = cancelOrders.request.validate(params as unknown);
+  if (!validated.success) {
+    sendError(ws, id, cid, "INVALID_PARAM", validated.error.message);
+    return;
   }
 
-  sendResponse(ws, actionId, { cancelled: cancelled.length });
+  const ids = cancelOrders.request.decode(validated.data);
+
+  const client = session.getClient(cid);
+  if (!client) {
+    sendError(ws, id, cid, "INVALID_CLIENT", "Client not logged in");
+    return;
+  }
+
+  const cancelled = client.broker.cancelOrder(ids);
+
+  if (cancelled.length > 0) {
+    const event: OrderEvent = {
+      type: "order",
+      timestamp: serverTime(),
+      updated: cancelled,
+      fill: [],
+    };
+    sendEvent(ws, cid, event);
+  }
+
+  sendResponse(ws, id, cid, cancelOrders.response.encode(cancelled.length));
 };

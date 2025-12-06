@@ -13,30 +13,10 @@ import {
   RunningDrawdown,
   RunningLongestDrawdown,
 } from "@junduck/trading-core/online";
-
-export type ReportType =
-  | "PERIODIC" // Cumulative priodic report per N events
-  | "TRADE" // Cumulative report per trade
-  | "ENDOFDAY"; // Session end of day report
-
-export interface MetricsReport {
-  reportType: ReportType;
-  timestamp: Date;
-
-  equity: number;
-  totalReturn: number;
-
-  sharpe: number;
-  sortino: number;
-
-  winRate: number;
-  avgGainLossRatio: number;
-  expectancy: number;
-  profitFactor: number;
-
-  maxDrawdown: number;
-  maxDrawdownDuration: number;
-}
+import type {
+  MetricsReport,
+  ReportType,
+} from "./schema/metrics-report.schema.js";
 
 export class BacktestMetrics {
   private sharpe: RunningSharpe;

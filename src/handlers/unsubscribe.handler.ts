@@ -1,30 +1,27 @@
-import { UnsubscribeParamsSchema } from "../schema/index.js";
-import type { UnsubscribeParams } from "../schema/index.js";
-import type { UnsubscribeResult } from "../protocol.js";
-import type { Handler } from "./types.js";
+import type { Handler } from "./handler.js";
+import { unsubscribe } from "../schema/subscribe.schema.js";
 
 export const unsubscribeHandler: Handler = (context, params) => {
-  const { session, ws, actionId, validateParams, sendResponse, sendError } =
-    context;
+  const { session, ws, id, cid, sendResponse, sendError } = context;
 
-  const validated = validateParams<UnsubscribeParams>(
-    ws,
-    actionId,
-    params,
-    UnsubscribeParamsSchema
-  );
-  if (!validated) return;
-
-  const { cid, symbols } = validated;
-
-  const client = session.getClient(cid);
-  if (!client) {
-    sendError(ws, actionId, "INVALID_CLIENT", "Client not logged in");
+  if (!cid) {
+    sendError(ws, id, cid, "INVALID_CLIENT", "Client id is required");
     return;
   }
 
-  const unsubscribed = client.removeSubscriptions(symbols);
+  const validated = unsubscribe.request.validate(params);
+  if (!validated.success) {
+    sendError(ws, id, cid, "INVALID_PARAM", validated.error.message);
+    return;
+  }
 
-  const result: UnsubscribeResult = { unsubscribed };
-  sendResponse(ws, actionId, result);
+  const client = session.getClient(cid);
+  if (!client) {
+    sendError(ws, id, cid, "INVALID_CLIENT", "Client not logged in");
+    return;
+  }
+
+  const unsubscribed = client.removeSubscriptions(validated.data.symbols);
+
+  sendResponse(ws, id, cid, unsubscribe.response.encode({ unsubscribed }));
 };

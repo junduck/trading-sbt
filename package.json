@@ -32,7 +32,8 @@
     "vitest": "^4.0.14"
   },
   "dependencies": {
-    "@junduck/trading-core": "^2.7.0",
+    "@junduck/trading-core": "^2.8.0",
+    "@junduck/trading-core-serdes": "^0.4.1",
     "better-sqlite3": "^12.5.0",
     "mysql2": "^3.15.3",
     "pg": "^8.16.3",

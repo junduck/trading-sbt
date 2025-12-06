@@ -2,7 +2,6 @@ import mysql from "mysql2/promise";
 import type { MarketQuote } from "@junduck/trading-core/trading";
 import type { DataSourceConfig } from "../schema/data-source.schema.js";
 import { ReplayDataSource } from "./replay-datasource.js";
-import { toDate } from "../utils.js";
 
 /**
  * MySQL/MariaDB implementation of ReplayDataSource.
@@ -63,12 +62,12 @@ export class MySQLReplayDataSource extends ReplayDataSource {
     const [rows] = await this.pool.query<mysql.RowDataPacket[]>(query, params);
 
     return rows.map((row) => {
-      const timestamp = toDate(row[this.rep.epochColumn], this.rep);
+      const timestamp = this.epochToDate(row[this.rep.epochColumn]);
       return {
         ...row,
         symbol: row[this.rep.symbolColumn],
-        timestamp,
         price: row[this.rep.priceColumn],
+        timestamp,
       };
     }) as MarketQuote[];
   }

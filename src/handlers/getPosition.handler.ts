@@ -1,28 +1,20 @@
-import { GetPositionParamsSchema } from "../schema/index.js";
-import type { GetPositionParams } from "../schema/index.js";
-import type { GetPositionResult } from "../protocol.js";
-import type { Handler } from "./types.js";
+import type { Handler } from "./handler.js";
+import { getPosition } from "../schema/getPosition.schema.js";
 
-export const getPositionHandler: Handler = (context, params) => {
-  const { session, ws, actionId, validateParams, sendResponse, sendError } =
-    context;
+export const getPositionHandler: Handler = (context, _params) => {
+  const { session, ws, id, cid, sendResponse, sendError } = context;
 
-  const validated = validateParams<GetPositionParams>(
-    ws,
-    actionId,
-    params,
-    GetPositionParamsSchema
-  );
-  if (!validated) return;
-
-  const { cid } = validated;
-
-  const client = session.getClient(cid);
-  if (!client) {
-    sendError(ws, actionId, "INVALID_CLIENT", "Client not logged in");
+  if (!cid) {
+    sendError(ws, id, cid, "INVALID_CLIENT", "Client id is required");
     return;
   }
 
-  const result: GetPositionResult = client.broker.getPosition();
-  sendResponse(ws, actionId, result);
+  const client = session.getClient(cid);
+  if (!client) {
+    sendError(ws, id, cid, "INVALID_CLIENT", "Client not logged in");
+    return;
+  }
+
+  const position = client.broker.getPosition();
+  sendResponse(ws, id, cid, getPosition.response.encode(position));
 };

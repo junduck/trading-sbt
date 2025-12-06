@@ -1,8 +1,8 @@
-import type { MarketEvent, ExternalEvent } from "./protocol.js";
 import type { DataRep, DataSourceConfig } from "./schema/data-source.schema.js";
 import mysql from "mysql2/promise";
 import pg from "pg";
 import Database from "better-sqlite3";
+import type { TableInfo } from "./types.js";
 
 export function serverTime(): Date {
   return new Date();
@@ -51,49 +51,91 @@ export function daysSinceEpoch(date: Date, tzOffset: number = 480): number {
   return Math.floor(localSec / 86400);
 }
 
-/**
- * Convert a standardized row to a MarketEvent.
- */
-export function toMarketEvent(
-  rows: Array<Record<string, any>>,
-  rep: DataRep
-): MarketEvent {
-  const data = rows.map((row) => ({
-    ...row,
-    symbol: row[rep.symbolColumn],
-    price: row[rep.priceColumn],
-    timestamp: toDate(row[rep.epochColumn], rep),
-  }));
-
-  return {
-    timestamp: new Date(), // event timestamp we use server time
-    type: "market",
-    marketData: data,
-  };
+export async function getTableInfo(
+  config: DataSourceConfig,
+  pool?: any
+): Promise<TableInfo[]> {
+  switch (config.type) {
+    case "mysql":
+      const [rows] = await (pool as mysql.Pool).query<mysql.RowDataPacket[]>(
+        "SELECT table_name FROM information_schema.tables WHERE table_schema = ? ORDER BY table_name",
+        [config.database]
+      );
+      // now query for min/max timestamp for each table
+      const tables: TableInfo[] = [];
+      for (const row of rows) {
+        const tableName = row["table_name"] as string;
+        const [minMaxRows] = await (pool as mysql.Pool).query<
+          mysql.RowDataPacket[]
+        >(
+          `SELECT MIN(${config.mapping.epochColumn}) AS min_ts, MAX(${config.mapping.epochColumn}) AS max_ts FROM \`${tableName}\``
+        );
+        const minTs = minMaxRows[0]!["min_ts"] as number;
+        const maxTs = minMaxRows[0]!["max_ts"] as number;
+        if (minTs !== null && maxTs !== null) {
+          tables.push({
+            name: tableName,
+            from: toDate(minTs, config.mapping),
+            to: toDate(maxTs, config.mapping),
+          });
+        }
+      }
+      return tables;
+    case "postgres":
+      const result = await (pool as pg.Pool).query<{ tablename: string }>(
+        "SELECT tablename FROM pg_tables WHERE schemaname = $1 ORDER BY tablename",
+        [config.schema]
+      );
+      const pgTables: TableInfo[] = [];
+      for (const row of result.rows) {
+        const tableName = row.tablename;
+        const res = await (pool as pg.Pool).query<{
+          min_ts: number;
+          max_ts: number;
+        }>(
+          `SELECT MIN(${config.mapping.epochColumn}) AS min_ts, MAX(${config.mapping.epochColumn}) AS max_ts FROM "${tableName}"`
+        );
+        const minTs = res.rows[0]!["min_ts"];
+        const maxTs = res.rows[0]!["max_ts"];
+        if (minTs !== null && maxTs !== null) {
+          pgTables.push({
+            name: tableName,
+            from: toDate(minTs, config.mapping),
+            to: toDate(maxTs, config.mapping),
+          });
+        }
+      }
+      return pgTables;
+    case "sqlite":
+      const db = new Database(config.filePath, { readonly: true });
+      const tableNames = db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table'")
+        .pluck()
+        .all() as string[];
+      const sqliteTables: TableInfo[] = [];
+      for (const tableName of tableNames) {
+        const row: any = db
+          .prepare(
+            `SELECT MIN(${config.mapping.epochColumn}) AS min_ts, MAX(${config.mapping.epochColumn}) AS max_ts FROM "${tableName}"`
+          )
+          .get();
+        const minTs = row["min_ts"] as number;
+        const maxTs = row["max_ts"] as number;
+        if (minTs !== null && maxTs !== null) {
+          sqliteTables.push({
+            name: tableName,
+            from: toDate(minTs, config.mapping),
+            to: toDate(maxTs, config.mapping),
+          });
+        }
+      }
+      return sqliteTables;
+    default:
+      return [];
+  }
 }
 
-/**
- * Convert a standardized row to an ExternalEvent.
- */
-export function toExternalEvent(
-  rows: Array<Record<string, any>>,
-  table: string, // just map table to source
-  rep: DataRep
-): ExternalEvent {
-  const data = rows.map((row) => ({
-    ...row,
-    timestamp: toDate(row[rep.epochColumn], rep),
-  }));
-
-  return {
-    type: "external",
-    timestamp: new Date(), // event timestamp we use server time
-    source: table,
-    data,
-  };
-}
-
-export async function getAvailTables(
+export async function listTables(
   config: DataSourceConfig,
   pool?: any
 ): Promise<string[]> {

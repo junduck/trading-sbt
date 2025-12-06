@@ -1,52 +1,40 @@
-import { SubmitOrdersParamsSchema } from "../schema/index.js";
-import type { SubmitOrdersParams } from "../schema/index.js";
-import type { OrderWSEvent } from "../protocol.js";
-import type { Handler } from "./types.js";
+import type { Handler } from "./handler.js";
+import { submitOrders } from "../schema/submitOrders.schema.js";
+import type { OrderEvent } from "../schema/event.schema.js";
 import { serverTime } from "../utils.js";
 
 export const submitOrdersHandler: Handler = (context, params) => {
-  const {
-    session,
-    ws,
-    actionId,
-    validateParams,
-    sendResponse,
-    sendError,
-    sendEvent,
-  } = context;
+  const { session, ws, id, cid, sendResponse, sendError, sendEvent } = context;
 
-  const validated = validateParams<SubmitOrdersParams>(
-    ws,
-    actionId,
-    params,
-    SubmitOrdersParamsSchema
-  );
-  if (!validated) return;
-
-  const { cid, orders } = validated;
-
-  const client = session.getClient(cid);
-  if (!client) {
-    sendError(ws, actionId, "INVALID_CLIENT", "Client not logged in");
+  if (!cid) {
+    sendError(ws, id, cid, "INVALID_CLIENT", "Client id is required");
     return;
   }
 
-  const updated = client.broker.submitOrder(orders as any);
-
-  if (updated.length > 0) {
-    const event: OrderWSEvent = {
-      type: "event",
-      cid,
-      timestamp: serverTime(),
-      data: {
-        type: "order",
-        timestamp: serverTime(),
-        updated,
-        fill: [],
-      },
-    };
-    sendEvent(ws, event);
+  const validated = submitOrders.request.validate(params as any);
+  if (!validated.success) {
+    sendError(ws, id, cid, "INVALID_PARAM", validated.error.message);
+    return;
   }
 
-  sendResponse(ws, actionId, { submitted: updated.length });
+  const orders = submitOrders.request.decode(validated.data);
+  const client = session.getClient(cid);
+  if (!client) {
+    sendError(ws, id, cid, "INVALID_CLIENT", "Client not logged in");
+    return;
+  }
+
+  const updated = client.broker.submitOrder(orders);
+
+  if (updated.length > 0) {
+    const event: OrderEvent = {
+      type: "order",
+      timestamp: serverTime(),
+      updated,
+      fill: [],
+    };
+    sendEvent(ws, cid, event);
+  }
+
+  sendResponse(ws, id, cid, submitOrders.response.encode(updated.length));
 };

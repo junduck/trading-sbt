@@ -10,8 +10,8 @@ Simple Backtest Protocol（SBT）是一个基于WebSocket的回测协议，专�
 
 - **统一接口**：单一WebSocket连接同时处理数据流和交易操作
 - **无状态操作**：通过客户端ID（`cid`）标识会话，无需认证
-- **请求-响应模式**：基于动作的请求，使用`action_id`进行关联
-- **事件流**：服务器异步推送市场和订单事件
+- **请求-响应模式**：类似JSON-RPC的方法调用，使用`id`进行关联
+- **事件流**：服务器异步推送市场数据、订单更新和统计报告
 - **类型安全**：JSON消息直接映射到TypeScript类型
 - **连接多路复用**：单个连接可多路复用多个客户端，实现并发回测
 
@@ -49,9 +49,10 @@ SBT的工作方式非常直接，采用主控-策略的协作模式：
 
 ```json
 {
-  "action": "string",        // 动作名称（如"submit", "subscribe"）
-  "action_id": "number",     // 用于关联响应的唯一ID
-  "params": "unknown"        // 动作特定参数
+  "method": "string",        // 方法名称（如"submitOrders", "subscribe"）
+  "id": "number",            // 用于关联响应的唯一ID
+  "cid": "string",           // 客户端ID（除init和replay外都需要）
+  "params": "unknown"        // 方法特定参数
 }
 ```
 
@@ -59,10 +60,11 @@ SBT的工作方式非常直接，采用主控-策略的协作模式：
 
 ```json
 {
-  "type": "response",
-  "action_id": "number",     // 匹配请求的action_id
-  "result": "unknown",       // 成功结果（可选）
-  "error": {                 // 错误详情（与result互斥）
+  "type": "result" | "error",
+  "id": "number",            // 匹配请求的id
+  "cid": "string",           // 客户端ID
+  "result": "unknown",       // 成功结果（type为result时）
+  "error": {                 // 错误详情（type为error时）
     "code": "string",        // 错误代码（如"INVALID_SYMBOL"）
     "message": "string"      // 人类可读的错误消息
   }
@@ -71,19 +73,50 @@ SBT的工作方式非常直接，采用主控-策略的协作模式：
 
 #### 事件消息（服务器 → 客户端）
 
+服务器会主动推送四种类型的事件：
+
+**市场数据事件**：推送订阅的市场行情数据
 ```json
 {
-  "type": "market" | "order" | "external",
-  "cid": "string",           // 客户端ID（将事件路由到特定客户端）
-  "data": "unknown",         // 事件特定数据
-  "timestamp": "number"      // Unix时间戳
+  "type": "market",
+  "timestamp": "number",     // 服务器发送时间（Unix时间戳，毫秒）
+  "marketData": [...]        // 市场行情数组
 }
 ```
 
-### 主要动作
+**订单事件**：推送订单状态更新和成交信息
+```json
+{
+  "type": "order",
+  "timestamp": "number",
+  "updated": [...],          // 更新的订单状态
+  "fill": [...]              // 成交记录
+}
+```
+
+**统计报告事件**：推送回测统计指标（根据replay配置）
+```json
+{
+  "type": "metrics",
+  "timestamp": "number",
+  "report": {...}            // 统计报告数据
+}
+```
+
+**外部事件**：推送自定义的外部数据
+```json
+{
+  "type": "external",
+  "timestamp": "number",
+  "source": "string",        // 数据源标识
+  "data": "unknown"          // 自定义数据
+}
+```
+
+### 主要方法
 
 - **连接管理**：`init`, `login`, `logout`
-- **数据提供**：`subscribe`, `unsubscribe`
+- **数据订阅**：`subscribe`, `unsubscribe`
 - **交易操作**：`getPosition`, `getOpenOrders`, `submitOrders`, `amendOrders`, `cancelOrders`, `cancelAllOrders`
 - **回测控制**：`replay`
 
@@ -102,7 +135,7 @@ SBT的工作方式非常直接，采用主控-策略的协作模式：
 
 当然，SBT也有一些限制和权衡：
 
-1. **简化市场模型**：不支持复杂的市场微观结构，如订单簿深度或级别2数据
+1. **简化市场模型**：不支持复杂的市场微观结构，如订单簿深度或Level2数据
 2. **无社交交易功能**：专注于单一策略回测，不包含策略分享或复制交易功能
 3. **有限的风险管理**：基础的风险控制，主要依赖客户端实现复杂的风控逻辑
 4. **无实时数据接口**：专为历史数据回测设计，不直接支持实时市场数据接入
@@ -138,12 +171,19 @@ import { WebSocket } from "ws";
 // 连接到服务器
 const ws = new WebSocket("ws://localhost:8080");
 
+// 初始化连接（获取服务器配置）
+ws.send(JSON.stringify({
+  method: "init",
+  id: 0,
+  params: {}
+}));
+
 // 登录客户端
 ws.send(JSON.stringify({
-  action: "login",
-  action_id: 1,
+  method: "login",
+  id: 1,
+  cid: "my-client",
   params: {
-    cid: "my-client",
     config: {
       initialCash: 100000,
       commission: {
@@ -156,29 +196,41 @@ ws.send(JSON.stringify({
 
 // 订阅市场数据
 ws.send(JSON.stringify({
-  action: "subscribe",
-  action_id: 2,
+  method: "subscribe",
+  id: 2,
+  cid: "my-client",
   params: {
-    cid: "my-client",
     symbols: ["AAPL", "MSFT"]
+  }
+}));
+
+// 开始回测（由主控发起）
+ws.send(JSON.stringify({
+  method: "replay",
+  id: 3,
+  params: {
+    table: "ohlcv5min",
+    from: 1733390740000,
+    to: 1753890740000,
+    replayId: "backtest-001",
+    replayInterval: 50,
+    periodicReport: 1000
   }
 }));
 
 // 提交订单
 ws.send(JSON.stringify({
-  action: "submitOrders",
-  action_id: 3,
-  params: {
-    cid: "my-client",
-    orders: [{
-      id: "order-1",
-      symbol: "AAPL",
-      side: "BUY",
-      effect: "OPEN_LONG",
-      type: "MARKET",
-      quantity: 100
-    }]
-  }
+  method: "submitOrders",
+  id: 4,
+  cid: "my-client",
+  params: [{
+    id: "order-1",
+    symbol: "AAPL",
+    side: "BUY",
+    effect: "OPEN_LONG",
+    type: "MARKET",
+    quantity: 100
+  }]
 }));
 ```
 

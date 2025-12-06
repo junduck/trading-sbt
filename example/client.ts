@@ -1,33 +1,30 @@
 import { WebSocket } from "ws";
-
-interface Request {
-  action: string;
-  action_id: number;
-  params?: unknown;
-}
-
-interface Response {
-  type: "response";
-  action_id: number;
-  result?: unknown;
-  error?: { code: string; message: string };
-}
-
-interface WSEvent {
-  type: "event";
-  cid: string;
-  timestamp: string;
-  data: {
-    type: "order" | "market" | "metrics";
-    timestamp: string;
-    [key: string]: unknown;
-  };
-}
+import {
+  type RequestWire,
+  type ResponseWire,
+  init,
+  login,
+  type LoginRequest,
+  subscribe,
+  type SubscribeRequest,
+  replay,
+  type ReplayRequest,
+  marketEvent,
+  orderEvent,
+  metricsEvent,
+  type InitReponse,
+  type LoginResponse,
+  type SubscribeResponse,
+  type ReplayResponse,
+} from "../src/schema/index.js";
 
 class TestClient {
   private ws: WebSocket;
   private actionId = 1;
-  private pendingRequests = new Map<number, (result: unknown) => void>();
+  private pendingRequests = new Map<
+    number,
+    { resolve: (result: unknown) => void; reject: (error: Error) => void }
+  >();
 
   constructor(private url: string) {
     this.ws = new WebSocket(url);
@@ -40,26 +37,29 @@ class TestClient {
     });
 
     this.ws.on("message", (data: Buffer) => {
-      const msg = JSON.parse(data.toString());
+      const msg = JSON.parse(data.toString()) as ResponseWire;
 
-      if (msg.type === "response") {
-        const response = msg as Response;
-        const handler = this.pendingRequests.get(response.action_id);
+      if (msg.type === "result") {
+        const handler = this.pendingRequests.get(msg.id!);
         if (handler) {
-          this.pendingRequests.delete(response.action_id);
-          if (response.error) {
-            console.error(
-              `Error [${response.action_id}]:`,
-              response.error.code,
-              response.error.message
-            );
-          } else {
-            handler(response.result);
-          }
+          this.pendingRequests.delete(msg.id!);
+          handler.resolve(msg.result);
+        }
+      } else if (msg.type === "error") {
+        const handler = this.pendingRequests.get(msg.id!);
+        if (handler) {
+          this.pendingRequests.delete(msg.id!);
+          console.error(
+            `Error [${msg.id}]:`,
+            msg.error?.code,
+            msg.error?.message
+          );
+          handler.reject(
+            new Error(`${msg.error?.code}: ${msg.error?.message}`)
+          );
         }
       } else if (msg.type === "event") {
-        const event = msg as WSEvent;
-        this.handleEvent(event);
+        this.handleEvent(msg);
       }
     });
 
@@ -72,68 +72,70 @@ class TestClient {
     });
   }
 
-  private handleEvent(event: WSEvent): void {
+  private handleEvent(msg: ResponseWire): void {
+    const eventWire = msg.event as any;
     console.log(
-      `[Event] cid=${event.cid} type=${event.data.type} timestamp=${event.timestamp}`
+      `[Event] cid=${msg.cid} type=${eventWire.type} timestamp=${eventWire.timestamp}`
     );
-    if (event.data.type === "market") {
-      const marketData = (event.data as any).marketData;
-      console.log(`  Market data: ${marketData?.length || 0} quotes`);
-      if (marketData?.length > 0) {
-        console.log(`  Sample:`, marketData[0]);
+
+    if (eventWire.type === "market") {
+      const event = marketEvent.decode(eventWire);
+      console.log(`  Market data: ${event.marketData.length} quotes`);
+      if (event.marketData.length > 0) {
+        console.log(`  Sample:`, event.marketData[0]);
       }
-    } else if (event.data.type === "order") {
-      const updated = (event.data as any).updated;
-      const fill = (event.data as any).fill;
+    } else if (eventWire.type === "order") {
+      const event = orderEvent.decode(eventWire);
       console.log(
-        `  Orders: ${updated?.length || 0} updated, ${fill?.length || 0} filled`
+        `  Orders: ${event.updated.length} updated, ${event.fill.length} filled`
       );
-    } else if (event.data.type === "metrics") {
-      console.log(JSON.stringify(event.data));
+    } else if (eventWire.type === "metrics") {
+      const event = metricsEvent.decode(eventWire);
+      console.log(`  Metrics:`, event.report);
     }
   }
 
-  private send(action: string, params?: unknown): Promise<unknown> {
-    return new Promise((resolve) => {
+  private send(
+    method: string,
+    params: unknown,
+    cid?: string
+  ): Promise<unknown> {
+    return new Promise((resolve, reject) => {
       const id = this.actionId++;
-      this.pendingRequests.set(id, resolve);
+      this.pendingRequests.set(id, { resolve, reject });
 
-      const request: Request = { action, action_id: id, params };
+      const request: RequestWire = { method, id, params };
+      if (cid !== undefined) {
+        request.cid = cid;
+      }
       this.ws.send(JSON.stringify(request));
     });
   }
 
-  async init(): Promise<void> {
-    const result = await this.send("init");
-    console.log("Init:", result);
+  async init(): Promise<InitReponse> {
+    const resultWire = await this.send("init", {});
+    return init.response.decode(resultWire as any);
   }
 
-  async login(cid: string, config: unknown): Promise<void> {
-    const result = await this.send("login", { cid, config });
-    console.log(`Login [${cid}]:`, result);
+  async login(cid: string, req: LoginRequest): Promise<LoginResponse> {
+    const reqWire = login.request.encode(req);
+    const resultWire = await this.send("login", reqWire, cid);
+    return login.response.decode(resultWire as any);
   }
 
-  async subscribe(cid: string, symbols: string[]): Promise<void> {
-    const result = await this.send("subscribe", { cid, symbols });
-    console.log(`Subscribe [${cid}]:`, result);
+  async subscribe(
+    cid: string,
+    req: SubscribeRequest
+  ): Promise<SubscribeResponse> {
+    const reqWire = subscribe.request.encode(req);
+    const resultWire = await this.send("subscribe", reqWire, cid);
+    return subscribe.response.decode(resultWire as any);
   }
 
-  async replay(
-    from: string,
-    to: string,
-    interval: number,
-    replay_id: string,
-    table: string
-  ): Promise<void> {
-    const result = await this.send("replay", {
-      from,
-      to,
-      interval,
-      replay_id,
-      reportPeriod: 2,
-      table,
-    });
-    console.log("Replay finished:", result);
+  async replay(req: ReplayRequest): Promise<ReplayResponse> {
+    const reqWire = replay.request.encode(req);
+    const resultWire = await this.send("replay", reqWire);
+    return replay.response.decode(resultWire as any);
   }
 
   close(): void {
@@ -147,44 +149,72 @@ async function main() {
   // Wait for connection
   await new Promise((resolve) => setTimeout(resolve, 1000));
 
-  // Initialize
-  await client.init();
+  // Initialize and get available tables/ranges
+  const initInfo = await client.init();
+  console.log("Init:", initInfo);
+
+  const { replayTables } = initInfo;
+  if (!replayTables || replayTables.length === 0) {
+    console.error("No available tables from server");
+    client.close();
+    return;
+  }
+
+  // Choose first available table
+  const tableInfo = replayTables[0];
+  const table = tableInfo.name;
+  const from = tableInfo.from;
+  const to = new Date(from.getTime() + 60 * 60 * 1000); // first hour
 
   // Login two clients
-  const config1 = {
-    initialCash: 100000,
-    commission: {
-      rate: 0.0003, // 0.03%
-      minimum: 5,
+  const config1: LoginRequest = {
+    config: {
+      initialCash: 100000,
+      commission: {
+        rate: 0.0003,
+        minimum: 5,
+      },
     },
   };
 
-  const config2 = {
-    initialCash: 200000,
-    commission: {
-      rate: 0.0003,
-      minimum: 5,
+  const config2: LoginRequest = {
+    config: {
+      initialCash: 200000,
+      commission: {
+        rate: 0.0003,
+        minimum: 5,
+      },
     },
   };
 
-  await client.login("client1", config1);
-  await client.login("client2", config2);
+  const login1 = await client.login("client1", config1);
+  console.log(`Login [client1]:`, login1);
+
+  const login2 = await client.login("client2", config2);
+  console.log(`Login [client2]:`, login2);
 
   // Subscribe to symbols
-  await client.subscribe("client1", ["000001", "600000"]);
-  await client.subscribe("client2", ["*"]);
+  const sub1 = await client.subscribe("client1", {
+    symbols: ["000001", "600000"],
+  });
+  console.log(`Subscribe [client1]:`, sub1);
 
-  // Start replay
-  console.log("\nStarting replay...\n");
-  await client.replay(
-    "2025-11-28T14:30:00+08:00",
-    "2025-11-28T15:00:00+08:00",
-    10, // 10ms interval between batches
-    "replay-001",
-    "ohlcv_15m"
+  const sub2 = await client.subscribe("client2", { symbols: ["*"] });
+  console.log(`Subscribe [client2]:`, sub2);
+
+  // Start replay with selected table and range
+  console.log(
+    `\nStarting replay for table '${table}' from ${from.toISOString()} to ${to.toISOString()}\n`
   );
 
-  console.log("\nReplay completed");
+  const replayResult = await client.replay({
+    table,
+    from,
+    to,
+    replayId: "replay-001",
+    replayInterval: 10,
+  });
+  console.log("Replay finished:", replayResult);
 
   // Close connection
   client.close();
