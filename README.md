@@ -81,7 +81,7 @@ SBT的工作方式非常直接，采用主控-策略的协作模式：
 {
   "type": "market",
   "timestamp": "number",     // 服务器发送时间（Unix时间戳，毫秒）
-  "marketData": [...]        // 市场行情数组
+  "data": [...]        // 市场行情数组
 }
 ```
 

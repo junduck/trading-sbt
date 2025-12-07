@@ -23,7 +23,7 @@ import {
 const MarketEventWireSchema = z.object({
   type: z.literal("market"),
   timestamp: z.number(),
-  marketData: z.array(MarketQuoteWireSchema),
+  data: z.array(MarketQuoteWireSchema),
 });
 
 export type MarketEventWire = z.infer<typeof MarketEventWireSchema>;
@@ -31,7 +31,7 @@ export type MarketEventWire = z.infer<typeof MarketEventWireSchema>;
 export type MarketEvent = {
   type: "market";
   timestamp: Date;
-  marketData: MarketQuote[];
+  data: MarketQuote[];
 };
 
 export const marketEvent = {
@@ -42,14 +42,14 @@ export const marketEvent = {
     return {
       type: "market",
       timestamp: event.timestamp.getTime(),
-      marketData: event.marketData.map((item) => encodeMarketQuote(item)),
+      data: event.data.map((item) => encodeMarketQuote(item)),
     } as MarketEventWire;
   },
   decode: (wire: MarketEventWire) => {
     return {
       type: "market",
       timestamp: new Date(wire.timestamp),
-      marketData: wire.marketData.map((item) => decodeMarketQuote(item)),
+      data: wire.data.map((item) => decodeMarketQuote(item)),
     } as MarketEvent;
   },
 };
@@ -141,12 +141,12 @@ export const ExternalEventWireSchema = z.object({
 
 export type ExternalEventWire = z.infer<typeof ExternalEventWireSchema>;
 
-export interface ExternalEvent {
+export type ExternalEvent = {
   type: "external";
   timestamp: Date;
   source: string;
   data: unknown;
-}
+};
 
 export const externalEvent = {
   validate: (wire: unknown) => {

@@ -80,9 +80,9 @@ class TestClient {
 
     if (eventWire.type === "market") {
       const event = marketEvent.decode(eventWire);
-      console.log(`  Market data: ${event.marketData.length} quotes`);
-      if (event.marketData.length > 0) {
-        console.log(`  Sample:`, event.marketData[0]);
+      console.log(`  Market data: ${event.data.length} quotes`);
+      if (event.data.length > 0) {
+        console.log(`  Sample:`, event.data[0]);
       }
     } else if (eventWire.type === "order") {
       const event = orderEvent.decode(eventWire);

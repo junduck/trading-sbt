@@ -166,7 +166,7 @@ export const replayHandler: Handler = async (context, params) => {
           const market: MarketEvent = {
             type: "market",
             timestamp: replayTime,
-            marketData: clientData,
+            data: clientData,
           };
           sendEvent(ws, clientId, market);
         }
@@ -177,7 +177,7 @@ export const replayHandler: Handler = async (context, params) => {
         const market: MarketEvent = {
           type: "market",
           timestamp: replayTime,
-          marketData: data,
+          data,
         };
         sendEvent(ws, "__multiplex__", market);
       }

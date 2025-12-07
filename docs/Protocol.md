@@ -46,7 +46,7 @@ type Response = {
 type MarketEvent = {
   type: "market";
   timestamp: Date;           // Server time when event sent
-  marketData: MarketQuote[]; // Timestamp in market qutoes are replay time
+  data: MarketQuote[]; // Timestamp in market qutoes are replay time
 }
 
 type OrderEvent = {
