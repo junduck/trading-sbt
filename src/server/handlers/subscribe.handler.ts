@@ -2,10 +2,16 @@ import type { Handler } from "./handler.js";
 import { subscribe } from "../../schema/subscribe.schema.js";
 
 export const subscribeHandler: Handler = (context, params) => {
-  const { session, ws, id, cid, sendResponse, sendError } = context;
+  const { session, ws, id, cid, sendResponse, sendError, activeReplays } =
+    context;
 
   if (!cid) {
     sendError(ws, id, cid, "INVALID_CLIENT", "Client id is required");
+    return;
+  }
+
+  if (activeReplays.has(ws)) {
+    sendResponse(ws, id, cid, subscribe.response.encode([]));
     return;
   }
 
@@ -21,7 +27,7 @@ export const subscribeHandler: Handler = (context, params) => {
     return;
   }
 
-  const subscribed = client.addSubscriptions(validated.data.symbols);
+  const subscribed = client.addSubscriptions(validated.data);
 
-  sendResponse(ws, id, cid, subscribe.response.encode({ subscribed }));
+  sendResponse(ws, id, cid, subscribe.response.encode(subscribed));
 };

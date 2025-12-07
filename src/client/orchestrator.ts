@@ -11,10 +11,7 @@ import {
   type SbtEvent,
   init,
   login,
-  type LoginRequest,
   subscribe,
-  type SubscribeRequest,
-  type SubscribeResponse,
   replay,
   type ReplayRequest,
   type ReplayResponse,
@@ -25,14 +22,13 @@ import {
   getPosition,
   getOpenOrders,
   unsubscribe,
-  type UnsubscribeRequest,
-  type UnsubscribeResponse,
   marketEvent,
   orderEvent,
   metricsEvent,
   externalEvent,
   type InitReponse,
 } from "../schema/index.js";
+import type { BacktestConfig } from "../schema/backtest-config.schema.js";
 
 type EventCallback = (event: SbtEvent) => Promise<void> | void;
 
@@ -47,12 +43,13 @@ export interface ClientContext {
   cancelOrders(orderIds: string[]): Promise<number>;
   cancelAllOrders(): Promise<number>;
 
-  subscribe(req: SubscribeRequest): Promise<SubscribeResponse>;
-  unsubscribe(req: UnsubscribeRequest): Promise<UnsubscribeResponse>;
+  subscribe(symbols: string[]): Promise<string[]>;
+  unsubscribe(symbols: string[]): Promise<string[]>;
 }
 
 export class Orchestrator {
   private ws: WebSocket;
+  private globalClientId = 0;
   private globalRequestId = 0;
   private pendingRequests = new Map<
     number,
@@ -171,14 +168,14 @@ export class Orchestrator {
   }
 
   login(
-    cid: string,
-    config: LoginRequest,
+    config: BacktestConfig,
     onEvent: EventCallback
   ): Promise<ClientContext> {
+    const cid = `client-${this.globalClientId++}`;
     this.clients.set(cid, onEvent);
 
     return (async () => {
-      const reqWire = login.request.encode(config);
+      const reqWire = login.request.encode({ config });
       const resultWire = await this.send("login", reqWire, cid);
       login.response.decode(resultWire as any);
 

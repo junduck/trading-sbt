@@ -186,9 +186,9 @@ Declare attendance / gracefully ask server to release resources
 
 #### subscribe
 
-Subscribe to market data for specified symbols.
+Subscribe to provider specified events.
 
-**Wildcard Subscription:** Use `"*"` to subscribe to all available symbols.
+**Wildcard Subscription:** Use `"*"` to subscribe to all available events.
 
 **Request:**
 
@@ -197,9 +197,7 @@ Subscribe to market data for specified symbols.
   "method": "subscribe",
   "id": 2,
   "cid": "client-uuid-123",
-  "params": {
-    "symbols": ["AAPL", "MSFT"]
-  }
+  "params": ["AAPL", "MSFT"]
 }
 ```
 
@@ -210,9 +208,7 @@ Subscribe to market data for specified symbols.
   "method": "subscribe",
   "id": 2,
   "cid": "client-uuid-123",
-  "params": {
-    "symbols": ["*"]
-  }
+  "params": ["*"]
 }
 ```
 
@@ -223,9 +219,7 @@ Subscribe to market data for specified symbols.
   "type": "result",
   "id": 2,
   "cid": "client-uuid-123",
-  "result": {
-    "subscribed": ["AAPL", "MSFT"]
-  }
+  "result": ["AAPL", "MSFT"]
 }
 ```
 
@@ -240,9 +234,7 @@ Unsubscribe from market data for specified symbols.
   "method": "unsubscribe",
   "id": 3,
   "cid": "client-uuid-123",
-  "params": {
-    "symbols": ["AAPL"]
-  }
+  "params": ["AAPL"]
 }
 ```
 
@@ -253,9 +245,7 @@ Unsubscribe from market data for specified symbols.
   "type": "result",
   "id": 3,
   "cid": "client-uuid-123",
-  "result": {
-    "unsubscribed": ["AAPL"]
-  }
+  "result": ["AAPL"]
 }
 ```
 
