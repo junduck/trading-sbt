@@ -86,3 +86,15 @@ export function decodeMetricsReport(wire: MetricsReportWire): MetricsReport {
     maxDrawdownDuration: wire.maxDrawdownDuration,
   };
 }
+
+export const metricsReport = {
+  validate: (wire: unknown) => {
+    return MetricsReportWireSchema.safeParse(wire);
+  },
+  encode: (report: MetricsReport) => {
+    return encodeMetricsReport(report);
+  },
+  decode: (wire: MetricsReportWire) => {
+    return decodeMetricsReport(wire);
+  },
+};

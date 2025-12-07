@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { BacktestConfigSchema } from "./backtest.schema.js";
+import { BacktestConfigSchema } from "./backtest-config.schema.js";
 
 const LoginRequestSchema = z.object({
   config: BacktestConfigSchema,
