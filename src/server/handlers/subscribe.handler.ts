@@ -1,7 +1,7 @@
 import type { Handler } from "./handler.js";
-import { unsubscribe } from "../schema/subscribe.schema.js";
+import { subscribe } from "../../schema/subscribe.schema.js";
 
-export const unsubscribeHandler: Handler = (context, params) => {
+export const subscribeHandler: Handler = (context, params) => {
   const { session, ws, id, cid, sendResponse, sendError } = context;
 
   if (!cid) {
@@ -9,7 +9,7 @@ export const unsubscribeHandler: Handler = (context, params) => {
     return;
   }
 
-  const validated = unsubscribe.request.validate(params);
+  const validated = subscribe.request.validate(params);
   if (!validated.success) {
     sendError(ws, id, cid, "INVALID_PARAM", validated.error.message);
     return;
@@ -21,7 +21,7 @@ export const unsubscribeHandler: Handler = (context, params) => {
     return;
   }
 
-  const unsubscribed = client.removeSubscriptions(validated.data.symbols);
+  const subscribed = client.addSubscriptions(validated.data.symbols);
 
-  sendResponse(ws, id, cid, unsubscribe.response.encode({ unsubscribed }));
+  sendResponse(ws, id, cid, subscribe.response.encode({ subscribed }));
 };

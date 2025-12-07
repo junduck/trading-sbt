@@ -1,6 +1,6 @@
 import { type Handler } from "./handler.js";
-import { serverTime } from "../utils.js";
-import { login, type LoginResponse } from "../schema/login.schema.js";
+import { serverTime } from "../../shared/utils.js";
+import { login, type LoginResponse } from "../../schema/login.schema.js";
 
 export const loginHandler: Handler = (context, params) => {
   const { session, ws, id, cid, sendResponse, sendError, activeReplays } =

@@ -1,4 +1,7 @@
-import type { DataRep, DataSourceConfig } from "./schema/data-source.schema.js";
+import type {
+  DataRep,
+  DataSourceConfig,
+} from "../schema/data-source.schema.js";
 import mysql from "mysql2/promise";
 import pg from "pg";
 import Database from "better-sqlite3";

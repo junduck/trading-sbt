@@ -1,7 +1,7 @@
 import type { Handler } from "./handler.js";
-import { serverTime } from "../utils.js";
+import { getPosition } from "../../schema/getPosition.schema.js";
 
-export const logoutHandler: Handler = (context, _params) => {
+export const getPositionHandler: Handler = (context, _params) => {
   const { session, ws, id, cid, sendResponse, sendError } = context;
 
   if (!cid) {
@@ -9,11 +9,12 @@ export const logoutHandler: Handler = (context, _params) => {
     return;
   }
 
-  const existed = session.logout(cid);
-  if (!existed) {
+  const client = session.getClient(cid);
+  if (!client) {
     sendError(ws, id, cid, "INVALID_CLIENT", "Client not logged in");
     return;
   }
 
-  sendResponse(ws, id, cid, { connected: false, timestamp: serverTime() });
+  const position = client.broker.getPosition();
+  sendResponse(ws, id, cid, getPosition.response.encode(position));
 };

@@ -1,11 +1,5 @@
 import { z } from "zod";
-import type { TableInfo } from "../types.js";
-
-const InitRequestWireSchema = z.object({});
-
-export type InitRequestWire = z.infer<typeof InitRequestWireSchema>;
-
-export type InitRequest = {};
+import type { TableInfo } from "../shared/types.js";
 
 const InitResponseWireSchema = z.object({
   replayTables: z.array(

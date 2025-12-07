@@ -1,10 +1,10 @@
 import type { WebSocket } from "ws";
 import type { Logger } from "pino";
 import type { Session } from "../session.js";
-import type { DataSourceConfig } from "../schema/data-source.schema.js";
-import type { DataSourcePool } from "../datasource/index.js";
-import type { TableInfo } from "../types.js";
-import type { SbtEvent } from "../schema/event.schema.js";
+import type { DataSourcePool } from "../../datasource/index.js";
+import type { TableInfo } from "../../shared/types.js";
+import type { SbtEvent } from "../../schema/event.schema.js";
+import type { DataSourceConfig } from "../../schema/data-source.schema.js";
 
 export interface HandlerContext {
   session: Session;

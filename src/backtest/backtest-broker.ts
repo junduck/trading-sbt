@@ -15,8 +15,8 @@ import {
   createPosition,
 } from "@junduck/trading-core/trading";
 
-import type { BacktestConfig } from "./schema/backtest-config.schema.js";
-import { DEBUG, logger } from "./logger.js";
+import type { BacktestConfig } from "../schema/backtest-config.schema.js";
+import { DEBUG, logger } from "../shared/logger.js";
 
 export class BacktestBroker {
   private config: BacktestConfig;

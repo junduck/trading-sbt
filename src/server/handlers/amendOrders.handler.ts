@@ -1,9 +1,9 @@
 import type { Handler } from "./handler.js";
-import { cancelOrders } from "../schema/cancelOrders.schema.js";
-import type { OrderEvent } from "../schema/event.schema.js";
-import { serverTime } from "../utils.js";
+import { serverTime } from "../../shared/utils.js";
+import type { OrderEvent } from "../../schema/event.schema.js";
+import { amendOrders } from "../../schema/amendOrders.schema.js";
 
-export const cancelOrdersHandler: Handler = (context, params) => {
+export const amendOrdersHandler: Handler = (context, params) => {
   const { session, ws, id, cid, sendResponse, sendError, sendEvent } = context;
 
   if (!cid) {
@@ -11,13 +11,13 @@ export const cancelOrdersHandler: Handler = (context, params) => {
     return;
   }
 
-  const validated = cancelOrders.request.validate(params);
+  const validated = amendOrders.request.validate(params);
   if (!validated.success) {
     sendError(ws, id, cid, "INVALID_PARAM", validated.error.message);
     return;
   }
 
-  const ids = cancelOrders.request.decode(validated.data);
+  const updates = amendOrders.request.decode(validated.data);
 
   const client = session.getClient(cid);
   if (!client) {
@@ -25,17 +25,17 @@ export const cancelOrdersHandler: Handler = (context, params) => {
     return;
   }
 
-  const cancelled = client.broker.cancelOrder(ids);
+  const updated = client.broker.amendOrder(updates);
 
-  if (cancelled.length > 0) {
+  if (updated.length > 0) {
     const event: OrderEvent = {
       type: "order",
       timestamp: serverTime(),
-      updated: cancelled,
+      updated,
       fill: [],
     };
     sendEvent(ws, cid, event);
   }
 
-  sendResponse(ws, id, cid, cancelOrders.response.encode(cancelled.length));
+  sendResponse(ws, id, cid, amendOrders.response.encode(updated.length));
 };

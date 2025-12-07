@@ -1,7 +1,7 @@
 import type { Handler } from "./handler.js";
-import { getPosition } from "../schema/getPosition.schema.js";
+import { getOpenOrders } from "../../schema/getOpenOrders.schema.js";
 
-export const getPositionHandler: Handler = (context, _params) => {
+export const getOpenOrdersHandler: Handler = (context, _params) => {
   const { session, ws, id, cid, sendResponse, sendError } = context;
 
   if (!cid) {
@@ -15,6 +15,6 @@ export const getPositionHandler: Handler = (context, _params) => {
     return;
   }
 
-  const position = client.broker.getPosition();
-  sendResponse(ws, id, cid, getPosition.response.encode(position));
+  const orders = client.broker.getOpenOrders();
+  sendResponse(ws, id, cid, getOpenOrders.response.encode(orders));
 };

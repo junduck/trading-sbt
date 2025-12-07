@@ -3,7 +3,7 @@ import type {
   DataSourceConfig,
   DataRep,
 } from "../schema/data-source.schema.js";
-import { toDate, toEpoch } from "../utils.js";
+import { toDate, toEpoch } from "../shared/utils.js";
 
 /**
  * Abstract base class for replay data sources.

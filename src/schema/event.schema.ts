@@ -183,7 +183,7 @@ export type SbtEventWire = z.infer<typeof EventWireSchema>;
 
 export type SbtEvent = MarketEvent | OrderEvent | MetricsEvent | ExternalEvent;
 
-export const event = {
+export const sbtEvent = {
   validate: (wire: unknown) => {
     return EventWireSchema.safeParse(wire);
   },

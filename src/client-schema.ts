@@ -14,7 +14,6 @@
 export type {
   amendOrdersRequest,
   CancelOrdersRequest,
-  InitRequest,
   InitReponse,
   LoginRequest,
   LoginResponse,
@@ -65,7 +64,7 @@ export { subscribe, unsubscribe } from "./schema/subscribe.schema.js";
 
 // Event helpers
 export {
-  event,
+  sbtEvent,
   marketEvent,
   orderEvent,
   metricsEvent,

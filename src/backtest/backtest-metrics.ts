@@ -16,7 +16,7 @@ import {
 import type {
   MetricsReport,
   ReportType,
-} from "./schema/metrics-report.schema.js";
+} from "../schema/metrics-report.schema.js";
 
 export class BacktestMetrics {
   private sharpe: RunningSharpe;
@@ -75,7 +75,7 @@ export class BacktestMetrics {
   }
 
   report(
-    reportType: ReportType,
+    type: ReportType,
     pos: Position,
     snapshot: MarketSnapshot,
     timestamp: Date
@@ -87,18 +87,20 @@ export class BacktestMetrics {
     const ddDur = this.drawdownDur.value;
 
     return {
-      reportType,
+      type,
       timestamp,
-      equity,
-      totalReturn,
-      sharpe: this.sharpe.value,
-      sortino: this.sortino.value,
-      winRate: this.winRate.value,
-      avgGainLossRatio: this.gainLoss.value,
-      expectancy: this.expectancy.value,
-      profitFactor: this.profitFactor.value,
-      maxDrawdown: dd?.max ?? 0,
-      maxDrawdownDuration: ddDur?.longest ?? 0,
+      metrics: {
+        equity,
+        totalReturn,
+        sharpe: this.sharpe.value,
+        sortino: this.sortino.value,
+        winRate: this.winRate.value,
+        avgGainLossRatio: this.gainLoss.value,
+        expectancy: this.expectancy.value,
+        profitFactor: this.profitFactor.value,
+        maxDrawdown: dd?.max ?? 0,
+        maxDrawdownDuration: ddDur?.longest ?? 0,
+      },
     };
   }
 }

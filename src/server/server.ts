@@ -3,13 +3,13 @@ import { Session } from "./session.js";
 import {
   DataSourceSchema,
   type DataSourceConfig,
-} from "./schema/data-source.schema.js";
+} from "../schema/data-source.schema.js";
 import {
   initializePool,
   closePool,
   type DataSourcePool,
-} from "./datasource/index.js";
-import { logger } from "./logger.js";
+} from "../datasource/index.js";
+import { logger } from "../shared/logger.js";
 import {
   initHandler,
   loginHandler,
@@ -24,13 +24,13 @@ import {
   cancelAllOrdersHandler,
   replayHandler,
 } from "./handlers/index.js";
-import { getTableInfo } from "./utils.js";
+import { getTableInfo } from "../shared/utils.js";
 
 import {
   RequestWireSchema,
   type RequestWire,
   type ResponseWire,
-} from "./schema/protocol.schema.js";
+} from "../schema/protocol.schema.js";
 import {
   externalEvent,
   marketEvent,
@@ -40,12 +40,12 @@ import {
   type MarketEvent,
   type MetricsEvent,
   type OrderEvent,
-} from "./schema/event.schema.js";
+} from "../schema/event.schema.js";
 import type { HandlerContext } from "./handlers/handler-context.js";
 import type { Handler } from "./handlers/handler.js";
 import z from "zod";
-import type { TableInfo } from "./types.js";
-import type { SbtEvent } from "./schema/event.schema.js";
+import type { TableInfo } from "../shared/types.js";
+import type { SbtEvent } from "../schema/event.schema.js";
 
 export class Server {
   private readonly wss: WebSocketServer;

@@ -1,9 +1,9 @@
 import type { Handler } from "./handler.js";
-import { serverTime } from "../utils.js";
-import type { OrderEvent } from "../schema/event.schema.js";
-import { amendOrders } from "../schema/amendOrders.schema.js";
+import { submitOrders } from "../../schema/submitOrders.schema.js";
+import type { OrderEvent } from "../../schema/event.schema.js";
+import { serverTime } from "../../shared/utils.js";
 
-export const amendOrdersHandler: Handler = (context, params) => {
+export const submitOrdersHandler: Handler = (context, params) => {
   const { session, ws, id, cid, sendResponse, sendError, sendEvent } = context;
 
   if (!cid) {
@@ -11,21 +11,20 @@ export const amendOrdersHandler: Handler = (context, params) => {
     return;
   }
 
-  const validated = amendOrders.request.validate(params);
+  const validated = submitOrders.request.validate(params);
   if (!validated.success) {
     sendError(ws, id, cid, "INVALID_PARAM", validated.error.message);
     return;
   }
 
-  const updates = amendOrders.request.decode(validated.data);
-
+  const orders = submitOrders.request.decode(validated.data);
   const client = session.getClient(cid);
   if (!client) {
     sendError(ws, id, cid, "INVALID_CLIENT", "Client not logged in");
     return;
   }
 
-  const updated = client.broker.amendOrder(updates);
+  const updated = client.broker.submitOrder(orders);
 
   if (updated.length > 0) {
     const event: OrderEvent = {
@@ -37,5 +36,5 @@ export const amendOrdersHandler: Handler = (context, params) => {
     sendEvent(ws, cid, event);
   }
 
-  sendResponse(ws, id, cid, amendOrders.response.encode(updated.length));
+  sendResponse(ws, id, cid, submitOrders.response.encode(updated.length));
 };

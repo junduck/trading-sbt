@@ -1,4 +1,4 @@
-import { createServer } from "../src/server.js";
+import { createServer } from "../src/server/server.js";
 import type { DataSourceConfig } from "../src/schema/data-source.schema.js";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";

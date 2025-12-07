@@ -1,4 +1,4 @@
-import { init } from "../schema/init.schema.js";
+import { init } from "../../schema/init.schema.js";
 import type { Handler } from "./handler.js";
 
 export const initHandler: Handler = (context, _params) => {
