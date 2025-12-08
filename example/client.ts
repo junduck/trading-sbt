@@ -158,8 +158,8 @@ async function main() {
   // Choose first available table
   const tableInfo = tables[0];
   const table = tableInfo.name;
-  const from = tableInfo.from;
-  const to = new Date(from.getTime() + 60 * 60 * 1000); // first hour
+  const startTime = tableInfo.startTime;
+  const endTime = new Date(startTime.getTime() + 60 * 60 * 1000); // first hour
 
   // Login two clients
   const config1: LoginRequest = {
@@ -197,13 +197,13 @@ async function main() {
 
   // Start replay with selected table and range
   console.log(
-    `\nStarting replay for table '${table}' from ${from.toISOString()} to ${to.toISOString()}\n`
+    `\nStarting replay for table '${table}' from ${startTime.toISOString()} to ${endTime.toISOString()}\n`
   );
 
   const replayResult = await client.replay({
     table,
-    from,
-    to,
+    startTime,
+    endTime,
     replayId: "replay-001",
     replayInterval: 10,
   });
