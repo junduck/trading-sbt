@@ -33,7 +33,7 @@ export abstract class ReplayDataSource {
    * Get unique epoch timestamps within a date range.
    * Returns number[] for efficiency, but accepts Date parameters.
    */
-  abstract getEpochs(from: Date, to: Date): Promise<number[]>;
+  abstract getEpochs(startTime: Date, endTime: Date): Promise<number[]>;
 
   /**
    * Get batch data for a specific epoch timestamp.
@@ -45,10 +45,10 @@ export abstract class ReplayDataSource {
    * Yields {timestamp: Date, data: MarketQuote[]} - caller doesn't handle epoch conversion.
    */
   async *replayData(
-    from: Date,
-    to: Date
+    startTime: Date,
+    endTime: Date
   ): AsyncGenerator<{ timestamp: Date; data: MarketQuote[] }> {
-    const epochs = await this.getEpochs(from, to);
+    const epochs = await this.getEpochs(startTime, endTime);
 
     for (const epoch of epochs) {
       const data = await this.getBatchByEpoch(epoch);

@@ -6,13 +6,13 @@ import { z } from "zod";
  */
 export const CommissionConfigSchema = z.object({
   /** Percentage commission rate (0.001 = 0.1%) */
-  rate: z.number().min(0).optional(),
+  rate: z.number().min(0).nullable().optional(),
   /** Fixed commission per trade */
-  perTrade: z.number().min(0).optional(),
+  perTrade: z.number().min(0).nullable().optional(),
   /** Minimum commission per trade */
-  minimum: z.number().min(0).optional(),
+  minimum: z.number().min(0).nullable().optional(),
   /** Maximum commission per trade */
-  maximum: z.number().min(0).optional(),
+  maximum: z.number().min(0).nullable().optional(),
 });
 
 /**
@@ -24,19 +24,21 @@ export const SlippageConfigSchema = z.object({
   price: z
     .object({
       /** Fixed slippage in basis points (100 = 1%) */
-      fixed: z.number().min(0).optional(),
+      fixed: z.number().min(0).nullable().optional(),
       /** Market impact per % of bar volume (e.g., 0.01 = 1% price impact per 100% volume) */
-      marketImpact: z.number().min(0).optional(),
+      marketImpact: z.number().min(0).nullable().optional(),
     })
+    .nullable()
     .optional(),
   /** Volume slippage configuration */
   volume: z
     .object({
       /** Maximum order size as % of bar volume (e.g., 0.1 = can fill max 10% of bar volume) */
-      maxParticipation: z.number().min(0).max(1).optional(),
+      maxParticipation: z.number().min(0).max(1).nullable().optional(),
       /** Allow partial fills when order exceeds available volume */
-      allowPartialFills: z.boolean().optional(),
+      allowPartialFills: z.boolean().nullable().optional(),
     })
+    .nullable()
     .optional(),
 });
 
@@ -45,9 +47,9 @@ export const SlippageConfigSchema = z.object({
  */
 export const BacktestConfigSchema = z.object({
   initialCash: z.number().positive(),
-  riskFree: z.number().nonnegative().optional(),
-  commission: CommissionConfigSchema,
-  slippage: SlippageConfigSchema.optional(),
+  riskFree: z.number().nonnegative().nullable().optional(),
+  commission: CommissionConfigSchema.nullable().optional(),
+  slippage: SlippageConfigSchema.nullable().optional(),
 });
 
 export type CommissionConfig = z.infer<typeof CommissionConfigSchema>;

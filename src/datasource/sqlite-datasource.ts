@@ -50,9 +50,9 @@ export class SQLiteReplayDataSource extends ReplayDataSource {
     this.batchStmt = this.db.prepare(batchQuery);
   }
 
-  async getEpochs(from: Date, to: Date): Promise<number[]> {
-    const fromEpoch = this.dateToEpoch(from);
-    const toEpoch = this.dateToEpoch(to);
+  async getEpochs(startTime: Date, endTime: Date): Promise<number[]> {
+    const fromEpoch = this.dateToEpoch(startTime);
+    const toEpoch = this.dateToEpoch(endTime);
     return this.epochsStmt.pluck().all(fromEpoch, toEpoch) as number[];
   }
 

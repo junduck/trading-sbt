@@ -9,7 +9,7 @@ export const initHandler: Handler = (context, _params) => {
     id,
     undefined,
     init.response.encode({
-      replayTables: replayTables,
+      tables: replayTables,
     })
   );
 };

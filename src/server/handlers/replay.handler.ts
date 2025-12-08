@@ -2,7 +2,7 @@ import { createDataSource } from "../../datasource/index.js";
 import { replay } from "../../schema/replay.schema.js";
 import type { SbtEvent, MarketEvent } from "../../schema/event.schema.js";
 import type { Handler } from "./handler.js";
-import { serverTime } from "../../shared/utils.js";
+import { serverTime, stripNulls } from "../../shared/utils.js";
 import type { MarketSnapshot } from "@junduck/trading-core";
 
 export const replayHandler: Handler = async (context, params) => {
@@ -20,7 +20,8 @@ export const replayHandler: Handler = async (context, params) => {
     logger,
   } = context;
 
-  const validated = replay.request.validate(params);
+  const cleanParams = stripNulls(params);
+  const validated = replay.request.validate(cleanParams);
   if (!validated.success) {
     sendError(ws, id, undefined, "INVALID_PARAM", validated.error.message);
     return;
@@ -84,8 +85,8 @@ export const replayHandler: Handler = async (context, params) => {
   }
   const symbols = hasWildcard ? [] : Array.from(allSymbols);
 
-  const fromDate = req.from;
-  const toDate = req.to;
+  const startTime = req.startTime;
+  const endTime = req.endTime;
   const replayBegin = serverTime();
 
   activeReplays.set(ws, req.replayId);
@@ -119,7 +120,7 @@ export const replayHandler: Handler = async (context, params) => {
       timestamp: new Date(0),
     };
 
-    for await (const batch of replayDb.replayData(fromDate, toDate)) {
+    for await (const batch of replayDb.replayData(startTime, endTime)) {
       const { timestamp, data } = batch;
       const replayTime = timestamp;
 
@@ -185,7 +186,7 @@ export const replayHandler: Handler = async (context, params) => {
       await new Promise((resolve) => setTimeout(resolve, req.replayInterval));
     }
 
-    const replayEnd = serverTime();
+    const replayFinish = serverTime();
 
     sendResponse(
       ws,
@@ -194,7 +195,7 @@ export const replayHandler: Handler = async (context, params) => {
       replay.response.encode({
         replayId: req.replayId,
         begin: replayBegin,
-        end: replayEnd,
+        finish: replayFinish,
       })
     );
   } catch (error) {

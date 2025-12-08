@@ -1,5 +1,5 @@
 import { type Handler } from "./handler.js";
-import { serverTime } from "../../shared/utils.js";
+import { serverTime, stripNulls } from "../../shared/utils.js";
 import { login, type LoginResponse } from "../../schema/login.schema.js";
 
 export const loginHandler: Handler = (context, params) => {
@@ -11,7 +11,8 @@ export const loginHandler: Handler = (context, params) => {
     return;
   }
 
-  const validated = login.request.validate(params);
+  const cleanParams = stripNulls(params);
+  const validated = login.request.validate(cleanParams);
   if (!validated.success) {
     sendError(ws, id, cid, "INVALID_PARAM", validated.error.message);
     return;

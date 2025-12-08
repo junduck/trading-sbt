@@ -78,8 +78,8 @@ export async function getTableInfo(
         if (minTs !== null && maxTs !== null) {
           tables.push({
             name: tableName,
-            from: toDate(minTs, config.mapping),
-            to: toDate(maxTs, config.mapping),
+            startTime: toDate(minTs, config.mapping),
+            endTime: toDate(maxTs, config.mapping),
           });
         }
       }
@@ -103,8 +103,8 @@ export async function getTableInfo(
         if (minTs !== null && maxTs !== null) {
           pgTables.push({
             name: tableName,
-            from: toDate(minTs, config.mapping),
-            to: toDate(maxTs, config.mapping),
+            startTime: toDate(minTs, config.mapping),
+            endTime: toDate(maxTs, config.mapping),
           });
         }
       }
@@ -127,8 +127,8 @@ export async function getTableInfo(
         if (minTs !== null && maxTs !== null) {
           sqliteTables.push({
             name: tableName,
-            from: toDate(minTs, config.mapping),
-            to: toDate(maxTs, config.mapping),
+            startTime: toDate(minTs, config.mapping),
+            endTime: toDate(maxTs, config.mapping),
           });
         }
       }
@@ -165,4 +165,28 @@ export async function listTables(
     default:
       return [];
   }
+}
+
+/**
+ * Recursively strip null values from an object.
+ * Converts null and undefined to undefined so zod can handle it properly.
+ */
+export function stripNulls(obj: unknown): unknown {
+  if (obj === null) {
+    return undefined;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map((item) => stripNulls(item));
+  }
+  if (typeof obj === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+      const cleaned = stripNulls(value);
+      if (cleaned !== undefined) {
+        result[key] = cleaned;
+      }
+    }
+    return result;
+  }
+  return obj;
 }

@@ -2,11 +2,11 @@ import { z } from "zod";
 import type { TableInfo } from "../shared/types.js";
 
 const InitResponseWireSchema = z.object({
-  replayTables: z.array(
+  tables: z.array(
     z.object({
       name: z.string(),
-      from: z.number(),
-      to: z.number(),
+      startTime: z.number(),
+      endTime: z.number(),
     })
   ),
 });
@@ -14,7 +14,7 @@ const InitResponseWireSchema = z.object({
 export type InitResponseWire = z.infer<typeof InitResponseWireSchema>;
 
 export type InitReponse = {
-  replayTables: TableInfo[];
+  tables: TableInfo[];
 };
 
 export const init = {
@@ -22,20 +22,20 @@ export const init = {
   response: {
     encode: (res: InitReponse) => {
       const wire: InitResponseWire = {
-        replayTables: res.replayTables.map((item) => ({
+        tables: res.tables.map((item) => ({
           name: item.name,
-          from: item.from.getTime(),
-          to: item.to.getTime(),
+          startTime: item.startTime.getTime(),
+          endTime: item.endTime.getTime(),
         })),
       };
       return wire;
     },
     decode: (wire: InitResponseWire) => {
       const res: InitReponse = {
-        replayTables: wire.replayTables.map((item) => ({
+        tables: wire.tables.map((item) => ({
           name: item.name,
-          from: new Date(item.from),
-          to: new Date(item.to),
+          startTime: new Date(item.startTime),
+          endTime: new Date(item.endTime),
         })),
       };
       return res;

@@ -374,6 +374,7 @@ export class BacktestBroker {
   private getCommission(price: number, quant: number): number {
     const notional = price * quant;
     const commission = this.config.commission;
+    if (!commission) return 0;
 
     // Complex commission structure
     let totalCommission = 0;

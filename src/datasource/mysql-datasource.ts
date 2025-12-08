@@ -24,9 +24,9 @@ export class MySQLReplayDataSource extends ReplayDataSource {
     this.pool = pool;
   }
 
-  async getEpochs(from: Date, to: Date): Promise<number[]> {
-    const fromEpoch = this.dateToEpoch(from);
-    const toEpoch = this.dateToEpoch(to);
+  async getEpochs(startTime: Date, endTime: Date): Promise<number[]> {
+    const fromEpoch = this.dateToEpoch(startTime);
+    const toEpoch = this.dateToEpoch(endTime);
 
     const query = `
       SELECT DISTINCT \`${this.table}\`.\`${this.rep.epochColumn}\`

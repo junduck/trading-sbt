@@ -2,22 +2,22 @@ import { z } from "zod";
 
 const SubscribeRequestWireSchema = z.object({
   table: z.string(),
-  from: z.number(),
-  to: z.number(),
+  startTime: z.number(),
+  endTime: z.number(),
   replayId: z.string(),
   replayInterval: z.number(),
-  periodicReport: z.number().optional(),
-  tradeReport: z.boolean().optional(),
-  endOfDayReport: z.boolean().optional(),
-  marketMultiplex: z.boolean().optional(),
+  periodicReport: z.number().nullable().optional(),
+  tradeReport: z.boolean().nullable().optional(),
+  endOfDayReport: z.boolean().nullable().optional(),
+  marketMultiplex: z.boolean().nullable().optional(),
 });
 
 export type ReplayRequestWire = z.infer<typeof SubscribeRequestWireSchema>;
 
 export type ReplayRequest = {
   table: string;
-  from: Date;
-  to: Date;
+  startTime: Date;
+  endTime: Date;
   replayId: string;
   replayInterval: number;
   periodicReport?: number;
@@ -29,7 +29,7 @@ export type ReplayRequest = {
 const ReplayResponseWireSchema = z.object({
   replayId: z.string(),
   begin: z.number(),
-  end: z.number(),
+  finish: z.number(),
 });
 
 export type ReplayResponseWire = z.infer<typeof ReplayResponseWireSchema>;
@@ -37,7 +37,7 @@ export type ReplayResponseWire = z.infer<typeof ReplayResponseWireSchema>;
 export type ReplayResponse = {
   replayId: string;
   begin: Date;
-  end: Date;
+  finish: Date;
 };
 
 export const replay = {
@@ -48,8 +48,8 @@ export const replay = {
     encode: (req: ReplayRequest) => {
       const wire: ReplayRequestWire = {
         table: req.table,
-        from: req.from.getTime(),
-        to: req.to.getTime(),
+        startTime: req.startTime.getTime(),
+        endTime: req.endTime.getTime(),
         replayId: req.replayId,
         replayInterval: req.replayInterval,
       };
@@ -73,8 +73,8 @@ export const replay = {
     decode: (wire: ReplayRequestWire) => {
       const req: ReplayRequest = {
         table: wire.table,
-        from: new Date(wire.from),
-        to: new Date(wire.to),
+        startTime: new Date(wire.startTime),
+        endTime: new Date(wire.endTime),
         replayId: wire.replayId,
         replayInterval: wire.replayInterval,
         periodicReport: wire.periodicReport ?? 0,
@@ -90,7 +90,7 @@ export const replay = {
       const wire: ReplayResponseWire = {
         replayId: res.replayId,
         begin: res.begin.getTime(),
-        end: res.end.getTime(),
+        finish: res.finish.getTime(),
       };
       return wire;
     },
@@ -98,7 +98,7 @@ export const replay = {
       const res: ReplayResponse = {
         replayId: wire.replayId,
         begin: new Date(wire.begin),
-        end: new Date(wire.end),
+        finish: new Date(wire.finish),
       };
       return res;
     },

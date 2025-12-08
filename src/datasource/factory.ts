@@ -81,8 +81,8 @@ export async function closePool(pool: DataSourcePool): Promise<void> {
     return;
   }
 
-  if ("end" in pool) {
-    await pool.end();
+  if ("finish" in pool) {
+    await pool.finish();
   }
 }
 

@@ -214,8 +214,8 @@ ws.send(JSON.stringify({
   id: 3,
   params: {
     table: "ohlcv5min",
-    from: 1733390740000,
-    to: 1753890740000,
+    startTime: 1733390740000,
+    endTime: 1753890740000,
     replayId: "backtest-001",
     replayInterval: 50,
     periodicReport: 1000

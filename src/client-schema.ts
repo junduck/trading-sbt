@@ -19,10 +19,6 @@ export type {
   LoginResponse,
   ReplayRequest,
   ReplayResponse,
-  SubscribeRequest,
-  SubscribeResponse,
-  UnsubscribeRequest,
-  UnsubscribeResponse,
   SubmitOrderRequest,
 } from "./schema/index.js";
 

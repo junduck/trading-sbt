@@ -101,16 +101,16 @@ Initialize connection with server-defined configuration. Sent automatically upon
   "result": {
     // Server-defined initialization response
     // Can include: server version, capabilities, supported features, etc.
-    "replayTables": [
+    "tables": [
       {
         "name": "ohlcv5min",
-        "from": 1733390740000, //unix epoch ms
-        "to":   1753890740000  //unix epoch ms
+        "startTime": 1733390740000, //unix epoch ms
+        "endTime":   1753890740000  //unix epoch ms
       },
       {
         "name": "tick",
-        "from": 1733390740000,
-        "to":   1753890740000
+        "startTime": 1733390740000,
+        "endTime":   1753890740000
       }
     ]
   }
@@ -251,7 +251,7 @@ Unsubscribe from market data for specified symbols.
 
 ### Replay
 
-A client-side orchestrator should manage the orchestration of multiplexed clients. This is done by asking the server to begin a replay
+A client-side orchestrator should manage the orchestration of multiplexed clients. This is done by asking the server to start a replay
 
 **Request:**
 
@@ -261,13 +261,13 @@ A client-side orchestrator should manage the orchestration of multiplexed client
   "id": 5, // orchestrator level request, no cid
   "params": {
     "table": "ohlcv5min", // replay table name
-    "from": 1733390740000, // unix epoch ms
-    "to": 1753890740000, // unix epoch ms
+    "startTime": 1733390740000, // unix epoch ms
+    "endTime": 1753890740000, // unix epoch ms
     "replayId": "some_id_for_this_replay",
     "replayInterval": 50, // ms between events
     "periodicReport": 1000, // optional, report every N events
     "tradeReport": true, // optional, include per-trade report
-    "endOfDayReport": true, // optional, include end of day report
+    "endOfDayReport": true, // optional, include finish of day report
     "marketMultiplex": false // optional, see below for details
   }
 }
@@ -292,12 +292,12 @@ Data stream starts immediately, and upon replay finish:
   "result": {
     "replayId": "some_id_for_this_replay",
     "begin": 1733390740000, // server time, unix epoch ms
-    "end": 1733390840000 // server time, unix epoch ms
+    "finish": 1733390840000 // server time, unix epoch ms
   }
 }
 ```
 
-begin and end are server wall-clock time.
+start and finish are server wall-clock time.
 
 ### Trade Provider Methods
 

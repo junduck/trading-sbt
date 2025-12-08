@@ -6,7 +6,6 @@ import {
   login,
   type LoginRequest,
   subscribe,
-  type SubscribeRequest,
   replay,
   type ReplayRequest,
   marketEvent,
@@ -14,7 +13,6 @@ import {
   metricsEvent,
   type InitReponse,
   type LoginResponse,
-  type SubscribeResponse,
   type ReplayResponse,
 } from "../src/schema/index.js";
 
@@ -123,10 +121,7 @@ class TestClient {
     return login.response.decode(resultWire as any);
   }
 
-  async subscribe(
-    cid: string,
-    req: SubscribeRequest
-  ): Promise<SubscribeResponse> {
+  async subscribe(cid: string, req: string[]): Promise<string[]> {
     const reqWire = subscribe.request.encode(req);
     const resultWire = await this.send("subscribe", reqWire, cid);
     return subscribe.response.decode(resultWire as any);
@@ -153,15 +148,15 @@ async function main() {
   const initInfo = await client.init();
   console.log("Init:", initInfo);
 
-  const { replayTables } = initInfo;
-  if (!replayTables || replayTables.length === 0) {
+  const { tables } = initInfo;
+  if (!tables || tables.length === 0) {
     console.error("No available tables from server");
     client.close();
     return;
   }
 
   // Choose first available table
-  const tableInfo = replayTables[0];
+  const tableInfo = tables[0];
   const table = tableInfo.name;
   const from = tableInfo.from;
   const to = new Date(from.getTime() + 60 * 60 * 1000); // first hour
@@ -194,12 +189,10 @@ async function main() {
   console.log(`Login [client2]:`, login2);
 
   // Subscribe to symbols
-  const sub1 = await client.subscribe("client1", {
-    symbols: ["000001", "600000"],
-  });
+  const sub1 = await client.subscribe("client1", ["000001", "600000"]);
   console.log(`Subscribe [client1]:`, sub1);
 
-  const sub2 = await client.subscribe("client2", { symbols: ["*"] });
+  const sub2 = await client.subscribe("client2", ["*"]);
   console.log(`Subscribe [client2]:`, sub2);
 
   // Start replay with selected table and range

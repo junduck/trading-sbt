@@ -26,9 +26,9 @@ export class PostgresReplayDataSource extends ReplayDataSource {
     this.fullTable = `${config.schema}.${table}`;
   }
 
-  async getEpochs(from: Date, to: Date): Promise<number[]> {
-    const fromEpoch = this.dateToEpoch(from);
-    const toEpoch = this.dateToEpoch(to);
+  async getEpochs(startTime: Date, endTime: Date): Promise<number[]> {
+    const fromEpoch = this.dateToEpoch(startTime);
+    const toEpoch = this.dateToEpoch(endTime);
 
     const result = await this.pool.query({
       name: `${this.replayId}_get_epochs`,

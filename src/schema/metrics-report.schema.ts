@@ -11,7 +11,7 @@ export type MetricsReportWire = z.infer<typeof MetricsReportWireSchema>;
 export type ReportType =
   | "PERIODIC" // Cumulative periodic report per N events
   | "TRADE" // Cumulative report per trade
-  | "ENDOFDAY"; // Session end of day report
+  | "ENDOFDAY"; // Session finish of day report
 
 export type MetricsReport = {
   type: ReportType;
