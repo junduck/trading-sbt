@@ -14,7 +14,7 @@ export const loginHandler: Handler = (context, params) => {
   const cleanParams = stripNulls(params);
   const validated = login.request.validate(cleanParams);
   if (!validated.success) {
-    sendError(ws, id, cid, "INVALID_PARAM", validated.error.message);
+    sendError(ws, id, cid, "INVALID_PARAMS", validated.error.message);
     return;
   }
 

@@ -6,7 +6,7 @@ JSON-RPC like WebSocket protocol for concurrent backtest replay and simulation.
 
 - **Unified Interface**: Single WebSocket for both data and trade
 - **Stateless Operations**: Client ID (`cid`) identifies session, no authentication required
-- **Request-Response Pattern**: Mehod-based requests with `id` for correlation
+- **Request-Response Pattern**: Method-based requests with `id` for correlation
 - **Event Streaming**: Server pushes market and order events asynchronously
 - **Type Safety**: JSON messages map directly to TypeScript types
 - **Per connection multiplexing**: A single connection may multiplex multiple clients, enabling concurrent backtesting
@@ -17,9 +17,9 @@ JSON-RPC like WebSocket protocol for concurrent backtest replay and simulation.
 
 ```typescript
 type Request = {
-  method: string;   // Method name (e.g., "submit", "subscribe")
+  method: string;   // Method name (e.g., "submitOrders", "subscribe")
   id: number;       // Unique ID for correlating responses
-  cid: string;      // Client ID
+  cid?: string;     // Client ID (optional for orchestrator-level requests)
   params: unknown;  // Action-specific parameters
 }
 ```
@@ -275,11 +275,11 @@ A client-side orchestrator should manage the orchestration of multiplexed client
 
 replayInterval: since we simulate real-time event, orchestrator can ask for some interval between event, so clients can process data without backpressure.
 
-marketMultiplex: when true, server will batch ALL market events per replayInterval, and orchestrator is responsible to demultiplex market events to each client based on their subscription. When false, server will send market events per client subscription, which may result in duplicated data sent over the wire. Default is false.
+marketMultiplex: when true, server will batch ALL market events per replayInterval, and the orchestrator is responsible to demultiplex market events to each client based on their subscription. When false, server will send market events per client subscription, which may result in duplicated data sent over the wire. Default is false.
 
-multiplexed market data will have recipient client id of `"__multiplex__"` in the event message.
+When `marketMultiplex` is enabled the server will send a single market event with `cid` set to `"__multiplex__"`. Note: the reference orchestrator in this repository does not implement demultiplexing — it will receive the multiplexed event but will not split it for per-client callbacks. Keep this in mind if you enable `marketMultiplex` in production.
 
-login request during replay will be rejected via error, the consideration is session prepares data upon login, not via replay
+Login requests during an active replay will be rejected with an error; session resources are prepared at login and are not available once a replay is running.
 
 **Response:**
 
@@ -573,6 +573,7 @@ Notice that order related errors only result in rejected order event.
 
 | Code | Description |
 |------|-------------|
+| `INVALID_PARAMS` | Request parameters are invalid or missing |
 | `INVALID_CLIENT` | Client ID not found or invalid |
 | `INVALID_SYMBOL` | Symbol not available for trading |
 | `INTERNAL_ERROR` | Server-side error |

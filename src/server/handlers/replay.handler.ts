@@ -23,7 +23,7 @@ export const replayHandler: Handler = async (context, params) => {
   const cleanParams = stripNulls(params);
   const validated = replay.request.validate(cleanParams);
   if (!validated.success) {
-    sendError(ws, id, undefined, "INVALID_PARAM", validated.error.message);
+    sendError(ws, id, undefined, "INVALID_PARAMS", validated.error.message);
     return;
   }
 

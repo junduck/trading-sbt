@@ -200,7 +200,7 @@ export class Orchestrator {
             id: order.id.length ? order.id : `${cid}-${clientOrderId++}`,
           }));
           const reqWire = submitOrders.request.encode(ordersWithId);
-          const resultWire = await this.send("submit", reqWire, cid);
+          const resultWire = await this.send("submitOrders", reqWire, cid);
           return submitOrders.response.decode(resultWire as any);
         },
 
@@ -210,18 +210,18 @@ export class Orchestrator {
             id: order.id,
           }));
           const reqWire = amendOrders.request.encode(ordersWithId);
-          const resultWire = await this.send("amend", reqWire, cid);
+          const resultWire = await this.send("amendOrders", reqWire, cid);
           return amendOrders.response.decode(resultWire as any);
         },
 
         cancelOrders: async (orderIds) => {
           const reqWire = cancelOrders.request.encode(orderIds);
-          const resultWire = await this.send("cancel", reqWire, cid);
+          const resultWire = await this.send("cancelOrders", reqWire, cid);
           return cancelOrders.response.decode(resultWire as any);
         },
 
         cancelAllOrders: async () => {
-          const resultWire = await this.send("cancelAll", {}, cid);
+          const resultWire = await this.send("cancelAllOrders", {}, cid);
           return cancelAllOrders.response.decode(resultWire as any);
         },
         subscribe: async (req) => {
