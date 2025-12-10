@@ -6,14 +6,12 @@ import mysql from "mysql2/promise";
 import pg from "pg";
 import Database from "better-sqlite3";
 import type { TableInfo } from "./types.js";
+import { getTimezoneOffset } from "date-fns-tz";
 
 export function serverTime(): Date {
   return new Date();
 }
 
-/**
- * Convert epoch timestamp to Date based on the unit.
- */
 export function toDate(time: number, rep: DataRep): Date {
   switch (rep.epochUnit) {
     case "s":
@@ -22,6 +20,10 @@ export function toDate(time: number, rep: DataRep): Date {
       return new Date(time);
     case "us":
       return new Date(time / 1000);
+    case "days":
+      // if days, time is now days since epoch in specified timezone
+      const offsetMs = getTimezoneOffset(rep.timezone, new Date(0));
+      return new Date(time * 86400 * 1000 - offsetMs);
   }
 }
 
@@ -33,25 +35,11 @@ export function toEpoch(date: Date, rep: DataRep): number {
       return date.getTime();
     case "us":
       return date.getTime() * 1000;
+    case "days":
+      // if days, return days since epoch in specified timezone
+      const offsetMs = getTimezoneOffset(rep.timezone, date);
+      return Math.floor((date.getTime() + offsetMs) / (86400 * 1000));
   }
-}
-
-/**
- * Convert Date to day index since Unix epoch (like R's Date type).
- * @param date - The date to convert
- * @param tzOffset - Timezone offset in minutes (default 480 = UTC+8 Asia/Shanghai)
- * @returns Day index since epoch in the specified timezone, or 0 if before epoch
- */
-export function daysSinceEpoch(date: Date, tzOffset: number = 480): number {
-  // TODO: config timezone
-  const epochSec = date.getTime() / 1000;
-  const tzOffsetSec = tzOffset * 60;
-  const localSec = epochSec + tzOffsetSec;
-
-  if (localSec < 0) {
-    return 0;
-  }
-  return Math.floor(localSec / 86400);
 }
 
 export async function getTableInfo(

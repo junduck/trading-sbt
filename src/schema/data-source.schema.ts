@@ -5,7 +5,7 @@ const DataRepSchema = z.object({
   symbolColumn: z.string().default("symbol"),
   epochColumn: z.string().default("timestamp"),
   priceColumn: z.string().default("close"),
-  epochUnit: z.enum(["s", "ms", "us"]).default("s"),
+  epochUnit: z.enum(["s", "ms", "us", "days"]).default("s"),
   timezone: z.string().default("UTC"),
 });
 
