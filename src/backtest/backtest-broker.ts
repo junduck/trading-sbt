@@ -175,26 +175,32 @@ export class BacktestBroker {
   }
 
   // When new batch of market data loaded, match pending order and return exec results
-  processPendingOrders(quotes: MarketQuote[]) {
-    // First, check and convert stop orders
-    const converted = this.processStopOrders(quotes);
-
-    // Then process normal orders (including converted ones)
-    const result = this.processNormalOrders(quotes);
-
-    // Combine converted orders with execution results
-    return {
-      updated: [...converted, ...result.updated],
-      filled: result.filled,
-    };
+  processOpenOrders(quotes: MarketQuote[]) {
+    // Detect data shape: if 'open' field exists, treat as candlestick bars
+    if ("open" in quotes[0]!) {
+      const bars = quotes as unknown as CandleStick[];
+      const converted = this.processStopOrdersBar(bars);
+      const result = this.processNormalOrdersBar(bars);
+      return {
+        updated: [...converted, ...result.updated],
+        filled: result.filled,
+      };
+    } else {
+      const converted = this.processStopOrdersTick(quotes);
+      const result = this.processNormalOrdersTick(quotes);
+      return {
+        updated: [...converted, ...result.updated],
+        filled: result.filled,
+      };
+    }
   }
 
   /**
-   * Check stop orders and convert to normal orders if stop condition met.
+   * Check stop orders and convert to normal orders if stop condition met (tick-level).
    * STOP → MARKET, STOP_LIMIT → LIMIT
    * Returns converted orders as they updated order type
    */
-  private processStopOrders(quotes: MarketQuote[]): OrderState[] {
+  private processStopOrdersTick(quotes: MarketQuote[]): OrderState[] {
     const quoteMap = new Map(quotes.map((q) => [q.symbol, q]));
     const converted: OrderState[] = [];
 
@@ -211,10 +217,8 @@ export class BacktestBroker {
           : quote.price <= state.stopPrice;
 
       if (stopTriggered) {
-        // Convert order type in-place
         state.type = state.type === "STOP" ? "MARKET" : "LIMIT";
         state.modified = this.now!;
-
         converted.push(structuredClone(state));
       }
     }
@@ -223,52 +227,68 @@ export class BacktestBroker {
   }
 
   /**
-   * Process normal orders (MARKET and LIMIT) and execute fills
+   * Fill order with slippage applied, state is updated by reference
    */
-  private processNormalOrders(quotes: MarketQuote[]) {
+  private fillWithSlippage(
+    state: OrderState,
+    price: number,
+    quant: number,
+    marketVolume?: number
+  ): Fill {
+    // Apply price slippage
+    const slippage = this.getPriceSlippage(
+      price,
+      quant,
+      state.side,
+      marketVolume
+    );
+    const adjFillPrice = price + slippage;
+
+    // Calculate commission
+    const commission = this.getCommission(adjFillPrice, quant);
+
+    // Fill the order
+    const fill = fillOrder({
+      state,
+      id: `fill_${this.orderIdCounter++}`,
+      price: adjFillPrice,
+      quant,
+      commission,
+      created: this.now!,
+    });
+
+    // Update position
+    processFill(this.position, fill, "FIFO");
+
+    return fill;
+  }
+
+  /**
+   * Process normal orders (MARKET and LIMIT) and execute fills (tick-level)
+   */
+  private processNormalOrdersTick(quotes: MarketQuote[]) {
     const quoteMap = new Map(quotes.map((q) => [q.symbol, q]));
     const updated: OrderState[] = [];
     const filled: Fill[] = [];
 
     for (const [id, state] of Array.from(this.openOrders.entries())) {
-      // Only process normal orders (STOP orders should have been converted)
       if (state.type !== "MARKET" && state.type !== "LIMIT") continue;
 
       const quote = quoteMap.get(state.symbol);
       if (!quote) continue;
 
-      // Determine base fill price from order type
-      const fillPrice = this.getMatchPrice(state, quote);
+      const fillPrice = this.getMatchPriceTick(state, quote);
       if (fillPrice === null) continue;
 
-      // Apply volume slippage: calculate fillable quantity
       const fillQuant = this.getFillQuantity(state, quote);
       if (fillQuant === 0) continue;
 
-      // Apply price slippage: adjust fill price
-      const slippage = this.getPriceSlippage(
+      const fill = this.fillWithSlippage(
+        state,
         fillPrice,
         fillQuant,
-        state.side,
         quote.volume
       );
-      const adjFillPrice = fillPrice + slippage;
-
-      // Calculate commission
-      const commission = this.getCommission(adjFillPrice, fillQuant);
-
-      // Fill the order, fillOrder updates state by ref (including time)
-      const fill = fillOrder({
-        state,
-        id: `fill_${this.orderIdCounter++}`,
-        price: adjFillPrice,
-        quant: fillQuant,
-        commission,
-        created: this.now!,
-      });
-
-      // Update position
-      processFill(this.position, fill, "FIFO");
 
       // Collect updated order and fill
       updated.push(state);
@@ -288,10 +308,82 @@ export class BacktestBroker {
   }
 
   /**
-   * Get correct match price for normal orders (MARKET/LIMIT), null if no match.
+   * Check stop orders and convert to normal orders if stop condition met (bar-level).
+   * STOP → MARKET, STOP_LIMIT → LIMIT
+   */
+  private processStopOrdersBar(candles: CandleStick[]): OrderState[] {
+    const candleMap = new Map(candles.map((c) => [c.symbol, c]));
+    const converted: OrderState[] = [];
+
+    for (const state of this.openOrders.values()) {
+      if (state.type !== "STOP" && state.type !== "STOP_LIMIT") continue;
+
+      const candle = candleMap.get(state.symbol);
+      if (!candle || !state.stopPrice) continue;
+
+      // Check if stop triggered during bar using high/low
+      const stopTriggered =
+        state.side === "BUY"
+          ? candle.high >= state.stopPrice
+          : candle.low <= state.stopPrice;
+
+      if (stopTriggered) {
+        state.type = state.type === "STOP" ? "MARKET" : "LIMIT";
+        state.modified = this.now!;
+        converted.push(structuredClone(state));
+      }
+    }
+
+    return converted;
+  }
+
+  /**
+   * Process normal orders (MARKET and LIMIT) and execute fills (bar-level)
+   */
+  private processNormalOrdersBar(candles: CandleStick[]) {
+    const candleMap = new Map(candles.map((c) => [c.symbol, c]));
+    const updated: OrderState[] = [];
+    const filled: Fill[] = [];
+
+    for (const [id, state] of Array.from(this.openOrders.entries())) {
+      if (state.type !== "MARKET" && state.type !== "LIMIT") continue;
+
+      const candle = candleMap.get(state.symbol);
+      if (!candle) continue;
+
+      const fillPrice = this.getMatchPriceBar(state, candle);
+      if (fillPrice === null) continue;
+
+      const fillQuant = this.getFillQuantity(state, candle);
+      if (fillQuant === 0) continue;
+
+      const fill = this.fillWithSlippage(
+        state,
+        fillPrice,
+        fillQuant,
+        candle.volume
+      );
+
+      updated.push(state);
+      filled.push(fill);
+
+      if (state.status === "FILLED") {
+        this.openOrders.delete(id);
+        this.decOpenSymbols(state.symbol);
+      }
+    }
+
+    return {
+      updated,
+      filled,
+    };
+  }
+
+  /**
+   * Get correct match price for normal orders (MARKET/LIMIT), null if no match (tick-level).
    * STOP orders should be converted to normal orders before calling this.
    */
-  private getMatchPrice(order: Order, quote: MarketQuote): number | null {
+  private getMatchPriceTick(order: Order, quote: MarketQuote): number | null {
     switch (order.type) {
       case "MARKET":
         return order.side === "BUY"
@@ -314,9 +406,44 @@ export class BacktestBroker {
   }
 
   /**
+   * Get correct match price for normal orders (MARKET/LIMIT), null if no match (bar-level).
+   */
+  private getMatchPriceBar(order: Order, candle: CandleStick): number | null {
+    switch (order.type) {
+      case "MARKET":
+        // Market orders execute at open for bar-based simulation
+        return candle.open;
+
+      case "LIMIT":
+        if (!order.price) return null;
+        if (order.side === "BUY") {
+          // Buy limit triggers if low touched limit price
+          if (candle.low <= order.price) {
+            // Fill at limit price or better
+            return Math.min(order.price, candle.open);
+          }
+          return null;
+        } else {
+          // Sell limit triggers if high touched limit price
+          if (candle.high >= order.price) {
+            // Fill at limit price or better
+            return Math.max(order.price, candle.open);
+          }
+          return null;
+        }
+
+      default:
+        return null;
+    }
+  }
+
+  /**
    * Calculate maximum fillable quantity based on volume constraints
    */
-  private getFillQuantity(state: OrderState, quote: MarketQuote): number {
+  private getFillQuantity(
+    state: OrderState,
+    quote: { volume?: number }
+  ): number {
     const volumeConfig = this.config.slippage?.volume;
     if (!volumeConfig || !quote.volume) {
       return state.remainingQuantity;
@@ -327,11 +454,9 @@ export class BacktestBroker {
       const maxQty = quote.volume * volumeConfig.maxParticipation;
 
       if (state.remainingQuantity > maxQty) {
-        // Partial fill allowed
         if (volumeConfig.allowPartialFills) {
           return maxQty;
         }
-        // Reject entire order
         return 0;
       }
     }
@@ -395,4 +520,14 @@ export class BacktestBroker {
 
     return totalCommission;
   }
+}
+
+interface CandleStick {
+  symbol: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  timestamp: Date;
 }
