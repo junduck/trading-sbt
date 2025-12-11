@@ -1,6 +1,6 @@
 import type {
-  DataRep,
   DataSourceConfig,
+  TimeRep,
 } from "../schema/data-source.schema.js";
 import mysql from "mysql2/promise";
 import pg from "pg";
@@ -12,7 +12,7 @@ export function serverTime(): Date {
   return new Date();
 }
 
-export function toDate(time: number, rep: DataRep): Date {
+export function toDate(time: number, rep: TimeRep): Date {
   switch (rep.epochUnit) {
     case "s":
       return new Date(time * 1000);
@@ -21,13 +21,14 @@ export function toDate(time: number, rep: DataRep): Date {
     case "us":
       return new Date(time / 1000);
     case "days":
-      // if days, time is now days since epoch in specified timezone
-      const offsetMs = getTimezoneOffset(rep.timezone, new Date(0));
-      return new Date(time * 86400 * 1000 - offsetMs);
+      const ms = time * 86400 * 1000;
+      // if days, time is now days since epoch in specified timezone, get offset from Date(ms) to handle potential DST
+      const offsetMs = getTimezoneOffset(rep.timezone, new Date(ms));
+      return new Date(ms - offsetMs);
   }
 }
 
-export function toEpoch(date: Date, rep: DataRep): number {
+export function toEpoch(date: Date, rep: TimeRep): number {
   switch (rep.epochUnit) {
     case "s":
       return Math.floor(date.getTime() / 1000);

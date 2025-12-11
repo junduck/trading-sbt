@@ -2,8 +2,9 @@ import { BacktestMetrics } from "../backtest/backtest-metrics.js";
 import { BacktestBroker } from "../backtest/backtest-broker.js";
 import type { BacktestConfig } from "../schema/backtest-config.schema.js";
 import type { MarketQuote, MarketSnapshot } from "@junduck/trading-core";
-import { serverTime, daysSinceEpoch } from "../shared/utils.js";
+import { serverTime, toEpoch } from "../shared/utils.js";
 import type { SbtEvent } from "../schema/event.schema.js";
+import type { TimeRep } from "../schema/data-source.schema.js";
 
 /**
  * Per-client session state.
@@ -11,9 +12,9 @@ import type { SbtEvent } from "../schema/event.schema.js";
  */
 export class ClientState {
   readonly cid: string;
-  readonly loginTimestamp: Date;
   readonly subscriptions: Set<string> = new Set();
   readonly broker: BacktestBroker;
+  readonly timeRep: TimeRep;
 
   private periodicMetrics: BacktestMetrics;
   private tradeMetrics: BacktestMetrics;
@@ -27,10 +28,10 @@ export class ClientState {
 
   private currentReplayTime: Date = new Date(0);
 
-  constructor(cid: string, config: BacktestConfig, loginTimestamp: Date) {
+  constructor(cid: string, config: BacktestConfig, timeRep: TimeRep) {
     this.cid = cid;
-    this.loginTimestamp = loginTimestamp;
     this.broker = new BacktestBroker(config);
+    this.timeRep = timeRep;
 
     const initialCash = config.initialCash;
     const riskFree = config.riskFree ?? 0;
@@ -74,7 +75,7 @@ export class ClientState {
   ): SbtEvent[] {
     const events: SbtEvent[] = [];
 
-    const { updated, filled } = this.broker.processPendingOrders(data);
+    const { updated, filled } = this.broker.processOpenOrders(data);
 
     if (updated.length > 0) {
       events.push({
@@ -114,7 +115,10 @@ export class ClientState {
     const events: SbtEvent[] = [];
 
     const position = this.broker.getPosition();
-    const day = daysSinceEpoch(snapshot.timestamp);
+    const day = toEpoch(snapshot.timestamp, {
+      epochUnit: "days",
+      timezone: this.timeRep.timezone,
+    });
 
     // Check for day change (EOD detection)
     if (this.eodReport && this.currentDay !== -1 && day > this.currentDay) {
@@ -172,11 +176,17 @@ export class Session {
    */
   readonly pendingRequests: Map<number, unknown> = new Map();
 
+  readonly timeRep: TimeRep;
+
+  constructor(timeRep: TimeRep) {
+    this.timeRep = timeRep;
+  }
+
   /**
    * Login creates a new client session.
    */
-  login(cid: string, config: BacktestConfig, timestamp: Date): ClientState {
-    const client = new ClientState(cid, config, timestamp);
+  login(cid: string, config: BacktestConfig): ClientState {
+    const client = new ClientState(cid, config, this.timeRep);
     this.clients.set(cid, client);
     return client;
   }

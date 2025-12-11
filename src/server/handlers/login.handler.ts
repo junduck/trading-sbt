@@ -33,7 +33,7 @@ export const loginHandler: Handler = (context, params) => {
   }
 
   const now = serverTime();
-  session.login(cid, config, now);
+  session.login(cid, config);
 
   const result: LoginResponse = {
     connected: true,

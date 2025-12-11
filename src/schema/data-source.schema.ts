@@ -84,3 +84,7 @@ export const DataSourceSchema = z.union([
 
 export type DataSourceConfig = z.infer<typeof DataSourceSchema>;
 export type DataRep = z.infer<typeof DataRepSchema>;
+export type TimeRep = {
+  epochUnit: "s" | "ms" | "us" | "days";
+  timezone: string;
+};

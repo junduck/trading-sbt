@@ -74,7 +74,7 @@ export class Server {
   }
 
   private handleConnection(ws: WebSocket): void {
-    const session = new Session();
+    const session = new Session(this.dataSourceConfig.mapping);
     this.connectionSessions.set(ws, session);
 
     logger.info("Client connected");
