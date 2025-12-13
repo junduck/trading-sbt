@@ -12,6 +12,14 @@ export function serverTime(): Date {
   return new Date();
 }
 
+/**
+ * Convert epoch time to Date based on TimeRep configuration.
+ * @param time Epoch time
+ * @param rep Time representation config with epochUnit and timezone
+ * @returns Date object
+ *
+ * @notes if epochUnit is "days", returns Date at midnight in specified timezone
+ */
 export function toDate(time: number, rep: TimeRep): Date {
   switch (rep.epochUnit) {
     case "s":
@@ -28,6 +36,14 @@ export function toDate(time: number, rep: TimeRep): Date {
   }
 }
 
+/**
+ * Convert Date to epoch time based on TimeRep configuration.
+ * @param date Date object
+ * @param rep Time representation config with epochUnit and timezone
+ * @returns Epoch time
+ *
+ * @notes if epochUnit is "days", returns days since "local epoch" (1970-01-01 local midnight) in specified timezone
+ */
 export function toEpoch(date: Date, rep: TimeRep): number {
   switch (rep.epochUnit) {
     case "s":

@@ -9,6 +9,8 @@
     "./client-schema": "./client-schema.js"
   },
   "scripts": {
+    "test": "vitest run",
+    "bench": "vitest bench",
     "example:server": "tsx example/server.ts",
     "example:client": "tsx example/client.ts",
     "docker:up": "docker-compose up -d",
