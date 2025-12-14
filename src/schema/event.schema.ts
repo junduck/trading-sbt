@@ -94,6 +94,50 @@ export const orderEvent = {
   },
 };
 
+// corporate actions
+
+export const CorpActionSchema = z.object({
+  symbol: z.string(),
+  splitRatio: z.number().optional(), // split per share, 2 for 2-for-1 split
+  dividendRate: z.number().optional(), // dividend per share
+});
+
+export type CorpAction = z.infer<typeof CorpActionSchema>;
+
+export const CorpEventWireSchema = z.object({
+  type: z.literal("corp"),
+  timestamp: z.number(),
+  action: z.array(CorpActionSchema),
+});
+
+export type CorpEventWire = z.infer<typeof CorpEventWireSchema>;
+
+export type CorpEvent = {
+  type: "corp";
+  timestamp: Date;
+  action: CorpAction[];
+};
+
+export const corpEvent = {
+  validate: (wire: unknown) => {
+    return CorpEventWireSchema.safeParse(wire);
+  },
+  encode: (event: CorpEvent) => {
+    return {
+      type: "corp",
+      timestamp: event.timestamp.getTime(),
+      action: event.action,
+    } as CorpEventWire;
+  },
+  decode: (wire: CorpEventWire) => {
+    return {
+      type: "corp",
+      timestamp: new Date(wire.timestamp),
+      action: wire.action,
+    } as CorpEvent;
+  },
+};
+
 // metrics
 
 export const MetricsEventWireSchema = z.object({
