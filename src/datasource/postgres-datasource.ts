@@ -1,99 +1,196 @@
 import pg from "pg";
-import type { MarketQuote } from "@junduck/trading-core/trading";
-import type { DataSourceConfig } from "../schema/data-source.schema.js";
-import { ReplayDataSource } from "./replay-datasource.js";
+import type { DataRow } from "./data-source.js";
+import { DataSource, DataIterator } from "./data-source.js";
+import { toDate, toEpoch } from "../shared/utils.js";
+import type { TableInfo } from "../shared/types.js";
+import type {
+  PostgresConfig,
+  ColumnMapping,
+  TableConfig,
+} from "../schema/data-source.schema.js";
+import type { TimeRep } from "../schema/data-source.schema.js";
 
-/**
- * PostgreSQL implementation of ReplayDataSource.
- */
-export class PostgresReplayDataSource extends ReplayDataSource {
-  private readonly pool: pg.Pool;
-  private readonly fullTable: string;
+function quoteIdent(identifier: string): string {
+  return `"${identifier.replaceAll('"', '""')}"`;
+}
 
-  constructor(
-    id: string,
-    config: DataSourceConfig,
-    pool: pg.Pool,
-    table: string,
-    symbols: string[]
-  ) {
-    if (config.type !== "postgres") {
-      throw new Error(`Expected PostgreSQL config, got ${config.type}`);
-    }
+export class PostgresDataSource extends DataSource {
+  private pool: pg.Pool;
+  private config: PostgresConfig;
 
-    super(id, config, table, symbols);
+  constructor(config: PostgresConfig, pool: pg.Pool) {
+    super();
+    this.config = config;
     this.pool = pool;
-    this.fullTable = `${config.schema}.${table}`;
   }
 
-  async getEpochs(startTime: Date, endTime: Date): Promise<number[]> {
-    const fromEpoch = this.dateToEpoch(startTime);
-    const toEpoch = this.dateToEpoch(endTime);
+  async getTableInfo(): Promise<TableInfo[]> {
+    const result: TableInfo[] = [];
 
-    const result = await this.pool.query({
-      name: `${this.replayId}_get_epochs`,
-      text: `
-        SELECT DISTINCT ${this.rep.epochColumn}
-        FROM ${this.fullTable}
-        WHERE ${this.rep.epochColumn} >= $1 AND ${this.rep.epochColumn} <= $2
-        ORDER BY ${this.rep.epochColumn} ASC
-      `,
-      values: [fromEpoch, toEpoch],
-    });
+    for (const table of this.config.tables) {
+      const timeRep: TimeRep = {
+        epochUnit: table.epochUnit,
+        timezone: table.timezone,
+      };
 
-    return result.rows.map((row) => row[this.rep.epochColumn] as number);
-  }
+      const schema = quoteIdent(this.config.schema);
+      const tableName = quoteIdent(table.name);
+      const epochCol = quoteIdent(table.mapping.epoch);
 
-  async getBatchByEpoch(epoch: number): Promise<MarketQuote[]> {
-    let result;
+      const query = `SELECT MIN(${epochCol}) as min, MAX(${epochCol}) as max FROM ${schema}.${tableName}`;
 
-    if (this.symbols && this.symbols.length > 0) {
-      // Prepared statement with symbol filtering
-      result = await this.pool.query({
-        name: `${this.replayId}_get_batch_with_symbols`,
-        text: `
-          SELECT *
-          FROM ${this.fullTable}
-          WHERE ${this.rep.epochColumn} = $1
-            AND ${this.rep.symbolColumn} = ANY($2::text[])
-          ORDER BY ${this.rep.symbolColumn} ASC
-        `,
-        values: [epoch, this.symbols],
-      });
-    } else {
-      // Prepared statement without symbol filtering
-      result = await this.pool.query({
-        name: `${this.replayId}_get_batch_all_symbols`,
-        text: `
-          SELECT *
-          FROM ${this.fullTable}
-          WHERE ${this.rep.epochColumn} = $1
-          ORDER BY ${this.rep.symbolColumn} ASC
-        `,
-        values: [epoch],
+      const res = await this.pool.query(query);
+      const row = res.rows[0];
+
+      if (!row || row.min == null || row.max == null) continue;
+
+      const startTime = toDate(row.min, timeRep);
+      const endTime = toDate(row.max, timeRep);
+
+      result.push({
+        name: table.name,
+        type: table.type,
+        startTime,
+        endTime,
       });
     }
 
-    return result.rows.map((row) => {
-      const timestamp = this.epochToDate(row[this.rep.epochColumn]);
-      return {
-        ...row,
-        symbol: row[this.rep.symbolColumn],
-        price: row[this.rep.priceColumn],
-        timestamp,
-      };
-    }) as MarketQuote[];
+    return result;
+  }
+
+  async loadTable(
+    table: string,
+    symbols: string[],
+    startTime: Date,
+    endTime?: Date
+  ): Promise<DataIterator> {
+    const tableConfig = this.config.tables.find((t) => t.name === table);
+    if (!tableConfig) {
+      throw new Error(`No config found for table ${table}`);
+    }
+
+    return new PostgresIterator(
+      this.pool,
+      this.config.schema,
+      tableConfig,
+      symbols,
+      startTime,
+      endTime
+    );
   }
 
   async close(): Promise<void> {
-    // Pool is shared, so we don't close it here
-    // The server will close it on shutdown
+    await this.pool.end();
+  }
+}
+
+class PostgresIterator extends DataIterator {
+  private pool: pg.Pool;
+  private schema: string;
+  private tableConfig: TableConfig;
+  private mapping: ColumnMapping;
+  private symbols: string[];
+  private timeRep: TimeRep;
+  private startEpoch: number;
+  private endEpoch: number | null;
+  private epochIndex: number[] = [];
+  private curEpochIdx = 0;
+  private loaded = false;
+  private batchQueryName: string = "";
+  private batchQueryText: string = "";
+
+  constructor(
+    pool: pg.Pool,
+    schema: string,
+    tableConfig: TableConfig,
+    symbols: string[],
+    startTime: Date,
+    endTime?: Date
+  ) {
+    super();
+    this.pool = pool;
+    this.schema = schema;
+    this.tableConfig = tableConfig;
+    this.mapping = tableConfig.mapping;
+    this.symbols = symbols;
+    this.timeRep = {
+      epochUnit: tableConfig.epochUnit,
+      timezone: tableConfig.timezone,
+    };
+
+    this.startEpoch = toEpoch(startTime, this.timeRep);
+    this.endEpoch = endTime ? toEpoch(endTime, this.timeRep) : null;
+
+    const schemaName = quoteIdent(this.schema);
+    const tableName = quoteIdent(this.tableConfig.name);
+    const epochCol = quoteIdent(this.mapping.epoch);
+    const symbolCol = quoteIdent(this.mapping.symbol);
+
+    const selectAll = this.symbols.includes("*");
+    this.batchQueryText = `SELECT * FROM ${schemaName}.${tableName} WHERE ${epochCol} = $1`;
+    if (!selectAll && this.symbols.length > 0) {
+      this.batchQueryText += ` AND ${symbolCol} = ANY($2)`;
+      this.batchQueryName = `batch_${schema}_${tableConfig.name}_filtered`;
+    } else {
+      this.batchQueryName = `batch_${schema}_${tableConfig.name}_all`;
+    }
   }
 
-  /**
-   * Get pool instance for raw queries (for advanced use cases).
-   */
-  getPool(): pg.Pool {
-    return this.pool;
+  private async loadEpochIndex(): Promise<void> {
+    const schemaName = quoteIdent(this.schema);
+    const tableName = quoteIdent(this.tableConfig.name);
+    const epochCol = quoteIdent(this.mapping.epoch);
+
+    let query = `SELECT DISTINCT ${epochCol} FROM ${schemaName}.${tableName} WHERE ${epochCol} >= $1`;
+    const params: number[] = [this.startEpoch];
+
+    if (this.endEpoch !== null) {
+      query += ` AND ${epochCol} <= $2`;
+      params.push(this.endEpoch);
+    }
+
+    query += ` ORDER BY ${epochCol}`;
+
+    const result = await this.pool.query(query, params);
+    this.epochIndex = result.rows.map(
+      (row) => row[this.mapping.epoch] as number
+    );
+    this.loaded = true;
+  }
+
+  async nextBatch(): Promise<DataRow[]> {
+    if (!this.loaded) {
+      await this.loadEpochIndex();
+    }
+
+    if (this.curEpochIdx >= this.epochIndex.length) {
+      return [];
+    }
+
+    const epoch = this.epochIndex[this.curEpochIdx++]!;
+    const timestamp = toDate(epoch, this.timeRep);
+
+    const selectAll = this.symbols.includes("*");
+    const params: (number | string[])[] = [epoch];
+    if (!selectAll && this.symbols.length > 0) {
+      params.push(this.symbols);
+    }
+
+    const result = await this.pool.query({
+      name: this.batchQueryName,
+      text: this.batchQueryText,
+      values: params,
+    });
+
+    const rows: DataRow[] = [];
+    for (const row of result.rows) {
+      rows.push({
+        ...row,
+        symbol: row[this.mapping.symbol] as string,
+        timestamp,
+      });
+    }
+
+    return rows;
   }
 }

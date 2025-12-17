@@ -1,0 +1,8 @@
+[
+  { "timestamp": 1006, "symbol": "X", "price": 56.0, "volume": 800 },
+  { "timestamp": 1006, "symbol": "Y", "price": 66.0, "volume": 900 },
+  { "timestamp": 1007, "symbol": "X", "price": 57.0, "volume": 850 },
+  { "timestamp": 1007, "symbol": "Y", "price": 67.0, "volume": 950 },
+  { "timestamp": 1008, "symbol": "X", "price": 58.0, "volume": 900 },
+  { "timestamp": 1008, "symbol": "Y", "price": 68.0, "volume": 1000 }
+]

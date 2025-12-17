@@ -1,10 +1,6 @@
-export { ReplayDataSource } from "./replay-datasource.js";
-export { SQLiteReplayDataSource } from "./sqlite-datasource.js";
-export { PostgresReplayDataSource } from "./postgres-datasource.js";
-export { MySQLReplayDataSource } from "./mysql-datasource.js";
-export {
-  createDataSource,
-  initializePool,
-  closePool,
-  type DataSourcePool,
-} from "./factory.js";
+export { DataSource, DataIterator, type DataRow } from "./data-source.js";
+export { SQLiteDataSource } from "./sqlite-datasource.js";
+export { JSONDataSource } from "./json-datasource.js";
+export { PostgresDataSource } from "./postgres-datasource.js";
+export { MySQLDataSource } from "./mysql-datasource.js";
+export { initializePool, finalizePool, type PoolType } from "./pool.js";

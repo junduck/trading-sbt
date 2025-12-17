@@ -104,10 +104,18 @@ export const CorpActionSchema = z.object({
 
 export type CorpAction = z.infer<typeof CorpActionSchema>;
 
+export const AdjFactorSchema = z.object({
+  symbol: z.string(),
+  adjFactor: z.number(),
+});
+
+export type AdjFactor = z.infer<typeof AdjFactorSchema>;
+
 export const CorpEventWireSchema = z.object({
   type: z.literal("corp"),
   timestamp: z.number(),
-  action: z.array(CorpActionSchema),
+  action: z.array(CorpActionSchema).optional(),
+  adjust: z.array(AdjFactorSchema).optional(),
 });
 
 export type CorpEventWire = z.infer<typeof CorpEventWireSchema>;
