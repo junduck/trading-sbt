@@ -1,4 +1,9 @@
-import type { Fill, MarketQuote, OrderState } from "@junduck/trading-core";
+import type {
+  Fill,
+  MarketQuote,
+  OrderState,
+  Position,
+} from "@junduck/trading-core/trading";
 import {
   decodeMarketQuote,
   encodeMarketQuote,
@@ -9,6 +14,9 @@ import {
   encodeOrderState,
   decodeFill,
   encodeFill,
+  PositionWireSchema,
+  encodePosition,
+  decodePosition,
 } from "@junduck/trading-core-serdes";
 import { z } from "zod";
 import {
@@ -17,6 +25,54 @@ import {
   MetricsReportWireSchema,
   type MetricsReport,
 } from "./metrics-report.schema.js";
+
+// generic event
+
+export const GenericEventDataSchema = z
+  .object({
+    // symbol identifier, required
+    symbol: z.string(),
+  })
+  .and(z.record(z.string(), z.unknown()));
+
+const GenericEventWireSchema = z.object({
+  // event type discriminator
+  type: z.string(),
+  // epoch timestamp in milliseconds, event timestamp
+  timestamp: z.number(),
+  // event data payload
+  data: z.array(GenericEventDataSchema),
+});
+
+export type GenericEventData = z.infer<typeof GenericEventDataSchema>;
+
+export type GenericEventWire = z.infer<typeof GenericEventWireSchema>;
+
+export type GenericEvent = {
+  type: string;
+  timestamp: Date;
+  data: Array<GenericEventData>;
+};
+
+export const genericEvent = {
+  validate: (wire: unknown) => {
+    return GenericEventWireSchema.safeParse(wire);
+  },
+  encode: (event: GenericEvent) => {
+    return {
+      type: event.type,
+      timestamp: event.timestamp.getTime(),
+      data: event.data,
+    } as GenericEventWire;
+  },
+  decode: (wire: GenericEventWire) => {
+    return {
+      type: wire.type,
+      timestamp: new Date(wire.timestamp),
+      data: wire.data,
+    } as GenericEvent;
+  },
+};
 
 // market
 
@@ -94,7 +150,43 @@ export const orderEvent = {
   },
 };
 
-// corporate actions
+// position
+
+const PositionEventWireSchema = z.object({
+  type: z.literal("position"),
+  timestamp: z.number(),
+  position: PositionWireSchema,
+});
+
+export type PositionEventWire = z.infer<typeof PositionEventWireSchema>;
+
+export type PositionEvent = {
+  type: "position";
+  timestamp: Date;
+  position: Position;
+};
+
+export const positionEvent = {
+  validate: (wire: unknown) => {
+    return PositionEventWireSchema.safeParse(wire);
+  },
+  encode: (event: PositionEvent) => {
+    return {
+      type: "position",
+      timestamp: event.timestamp.getTime(),
+      position: encodePosition(event.position),
+    } as PositionEventWire;
+  },
+  decode: (wire: PositionEventWire) => {
+    return {
+      type: "position",
+      timestamp: new Date(wire.timestamp),
+      position: decodePosition(wire.position),
+    } as PositionEvent;
+  },
+};
+
+// corp action, treated as generic event
 
 export const CorpActionSchema = z.object({
   symbol: z.string(),
@@ -104,18 +196,10 @@ export const CorpActionSchema = z.object({
 
 export type CorpAction = z.infer<typeof CorpActionSchema>;
 
-export const AdjFactorSchema = z.object({
-  symbol: z.string(),
-  adjFactor: z.number(),
-});
-
-export type AdjFactor = z.infer<typeof AdjFactorSchema>;
-
-export const CorpEventWireSchema = z.object({
+const CorpEventWireSchema = z.object({
   type: z.literal("corp"),
   timestamp: z.number(),
-  action: z.array(CorpActionSchema).optional(),
-  adjust: z.array(AdjFactorSchema).optional(),
+  data: z.array(CorpActionSchema),
 });
 
 export type CorpEventWire = z.infer<typeof CorpEventWireSchema>;
@@ -123,7 +207,7 @@ export type CorpEventWire = z.infer<typeof CorpEventWireSchema>;
 export type CorpEvent = {
   type: "corp";
   timestamp: Date;
-  action: CorpAction[];
+  data: CorpAction[];
 };
 
 export const corpEvent = {
@@ -134,15 +218,58 @@ export const corpEvent = {
     return {
       type: "corp",
       timestamp: event.timestamp.getTime(),
-      action: event.action,
+      data: event.data,
     } as CorpEventWire;
   },
   decode: (wire: CorpEventWire) => {
     return {
       type: "corp",
       timestamp: new Date(wire.timestamp),
-      action: wire.action,
+      data: wire.data,
     } as CorpEvent;
+  },
+};
+
+// adjustment, treated as generic event
+
+export const AdjSchema = z.object({
+  symbol: z.string(),
+  factor: z.number(), // adjustment factor
+});
+
+export type Adj = z.infer<typeof AdjSchema>;
+
+const AdjEventWireSchema = z.object({
+  type: z.literal("adj"),
+  timestamp: z.number(),
+  data: z.array(AdjSchema),
+});
+
+export type AdjEventWire = z.infer<typeof AdjEventWireSchema>;
+
+export type AdjEvent = {
+  type: "adj";
+  timestamp: Date;
+  data: Adj[];
+};
+
+export const adjEvent = {
+  validate: (wire: unknown) => {
+    return AdjEventWireSchema.safeParse(wire);
+  },
+  encode: (event: AdjEvent) => {
+    return {
+      type: "adj",
+      timestamp: event.timestamp.getTime(),
+      data: event.data,
+    } as AdjEventWire;
+  },
+  decode: (wire: AdjEventWire) => {
+    return {
+      type: "adj",
+      timestamp: new Date(wire.timestamp),
+      data: wire.data,
+    } as AdjEvent;
   },
 };
 
@@ -182,85 +309,12 @@ export const metricsEvent = {
   },
 };
 
-// external
-
-export const ExternalEventWireSchema = z.object({
-  type: z.literal("external"),
-  timestamp: z.number(),
-  source: z.string(),
-  data: z.unknown(),
-});
-
-export type ExternalEventWire = z.infer<typeof ExternalEventWireSchema>;
-
-export type ExternalEvent = {
-  type: "external";
-  timestamp: Date;
-  source: string;
-  data: unknown;
-};
-
-export const externalEvent = {
-  validate: (wire: unknown) => {
-    return ExternalEventWireSchema.safeParse(wire);
-  },
-  encode: (event: ExternalEvent) => {
-    return {
-      type: "external",
-      timestamp: event.timestamp.getTime(),
-      source: event.source,
-      data: event.data,
-    } as ExternalEventWire;
-  },
-  decode: (wire: ExternalEventWire) => {
-    return {
-      type: "external",
-      timestamp: new Date(wire.timestamp),
-      source: wire.source,
-      data: wire.data,
-    } as ExternalEvent;
-  },
-};
-
 // union
 
-export const EventWireSchema = z.discriminatedUnion("type", [
-  MarketEventWireSchema,
-  OrderEventWireSchema,
-  MetricsEventWireSchema,
-  ExternalEventWireSchema,
-]);
-
-export type SbtEventWire = z.infer<typeof EventWireSchema>;
-
-export type SbtEvent = MarketEvent | OrderEvent | MetricsEvent | ExternalEvent;
-
-export const sbtEvent = {
-  validate: (wire: unknown) => {
-    return EventWireSchema.safeParse(wire);
-  },
-  encode: (evt: SbtEvent): SbtEventWire => {
-    switch (evt.type) {
-      case "market":
-        return marketEvent.encode(evt);
-      case "order":
-        return orderEvent.encode(evt);
-      case "metrics":
-        return metricsEvent.encode(evt);
-      case "external":
-        return externalEvent.encode(evt);
-    }
-  },
-  decode: (wire: SbtEventWire): SbtEvent => {
-    switch (wire.type) {
-      case "market":
-        return marketEvent.decode(wire);
-      case "order":
-        return orderEvent.decode(wire);
-      case "metrics":
-        return metricsEvent.decode(wire);
-      case "external":
-        return externalEvent.decode(wire);
-    }
-  },
-};
+export type SbtEvent =
+  | GenericEvent
+  | MarketEvent
+  | OrderEvent
+  | PositionEvent
+  | CorpEvent
+  | MetricsEvent;
