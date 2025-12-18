@@ -3,6 +3,14 @@ import { BacktestConfigSchema } from "./backtest-config.schema.js";
 
 const LoginRequestSchema = z.object({
   config: BacktestConfigSchema,
+  // whether to send backtest events
+  event: z.object({
+    order: z.boolean().optional().default(true),
+    position: z.boolean().optional().default(true),
+    // corp action events, will send either CorpEvent or AdjEvent based on client config
+    corp: z.boolean().optional().default(true),
+    metrics: z.boolean().optional().default(true),
+  }),
 });
 
 export type LoginRequest = z.infer<typeof LoginRequestSchema>;
